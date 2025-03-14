@@ -1,4 +1,3 @@
-
 import { FirecrawlService } from './FirecrawlService';
 
 export interface Product {
@@ -48,26 +47,34 @@ export interface ScrapeResult {
  * Lista de URLs de respaldo para probar si la URL principal no funciona
  */
 const BACKUP_URLS = [
-  "https://profesa.info/",
-  "https://profesa.info/tienda/",
-  "https://profesa.info/shop/",
-  "https://profesa.info/productos/",
-  "https://profesa.info/todos-los-productos/",
-  "https://profesa.info/catalogo/",
-  "https://www.profesa.info/categoria-producto/"
+  "/tienda/",
+  "/shop/",
+  "/productos/",
+  "/todos-los-productos/",
+  "/catalogo/",
+  "/categoria-producto/"
+];
+
+/**
+ * Proxies CORS para intentar obtener el contenido
+ */
+const CORS_PROXIES = [
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://cors-anywhere.herokuapp.com/${url}`
 ];
 
 /**
  * Extrae y analiza datos de productos del sitio web objetivo
  * con soporte para rastreo recursivo de subpáginas
  */
-export const scrapeProducts = async (url: string = 'https://profesa.info/categoria-producto/', options = { 
+export const scrapeProducts = async (url: string, options = { 
   recursive: true,
   maxDepth: 2,
   includeProductPages: true
 }): Promise<ScrapeResult> => {
   try {
-    console.log(`Iniciando rastreo web mejorado desde ${url} con opciones:`, options);
+    console.log(`Iniciando rastreo web desde ${url} con opciones:`, options);
     
     const visitedUrls = new Set<string>();
     const allProducts: Product[] = [];
@@ -81,22 +88,121 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
     try {
       baseUrlObj = new URL(baseUrl);
     } catch (e) {
-      console.error(`URL inválida: ${baseUrl}, usando predeterminada`);
-      baseUrlObj = new URL('https://profesa.info');
+      console.error(`URL inválida: ${baseUrl}, intentando corregir`);
+      // Intentar agregar protocolo si falta
+      try {
+        baseUrlObj = new URL(`https://${baseUrl}`);
+      } catch (e) {
+        return {
+          success: false,
+          error: `URL inválida: ${baseUrl}. Debe ser una URL válida como 'https://ejemplo.com'`,
+          products: [],
+          lastUpdated: new Date().toISOString(),
+        };
+      }
     }
+    
+    // Función para verificar si una URL es del mismo dominio
+    const isSameDomain = (urlToCheck: string): boolean => {
+      try {
+        const checkUrl = new URL(urlToCheck);
+        return checkUrl.hostname === baseUrlObj.hostname;
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    // Normaliza una URL relativa a absoluta
+    const normalizeUrl = (relativeUrl: string): string => {
+      try {
+        // Si ya es una URL absoluta
+        if (relativeUrl.startsWith('http')) {
+          return relativeUrl;
+        }
+        
+        // Manejar URLs relativas
+        if (relativeUrl.startsWith('/')) {
+          return `${baseUrlObj.origin}${relativeUrl}`;
+        } else {
+          // URLs relativas a la ruta actual
+          const path = baseUrlObj.pathname.split('/').slice(0, -1).join('/');
+          return `${baseUrlObj.origin}${path}/${relativeUrl}`;
+        }
+      } catch (e) {
+        console.error(`Error normalizando URL: ${relativeUrl}`, e);
+        return relativeUrl;
+      }
+    };
+    
+    // Función para intentar acceder a una URL usando diferentes proxies CORS
+    const fetchWithCorsProxy = async (urlToFetch: string): Promise<string> => {
+      let html = '';
+      let fetchError = null;
+      
+      // Primero intenta una solicitud directa (puede funcionar en algunos casos)
+      try {
+        console.log(`Intentando solicitud directa a: ${urlToFetch}`);
+        const response = await fetch(urlToFetch);
+        if (response.ok) {
+          html = await response.text();
+          console.log(`Solicitud directa exitosa para: ${urlToFetch}`);
+          return html;
+        }
+      } catch (error) {
+        console.log(`Solicitud directa falló, probando proxies CORS...`);
+        fetchError = error;
+      }
+      
+      // Si falla la solicitud directa, intenta con los proxies CORS
+      for (const proxyGenerator of CORS_PROXIES) {
+        try {
+          const proxyUrl = proxyGenerator(urlToFetch);
+          console.log(`Intentando con proxy CORS: ${proxyUrl}`);
+          
+          const response = await fetch(proxyUrl);
+          if (response.ok) {
+            html = await response.text();
+            console.log(`Proxy CORS exitoso para: ${urlToFetch}`);
+            return html;
+          }
+        } catch (error) {
+          console.log(`Proxy CORS falló: ${proxyGenerator(urlToFetch)}`);
+          fetchError = error;
+        }
+      }
+      
+      // Si todas las opciones fallan, intenta una solicitud sin-cors como último recurso
+      try {
+        console.log(`Intentando solicitud no-cors a: ${urlToFetch}`);
+        const response = await fetch(urlToFetch, {
+          mode: 'no-cors',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        
+        // El modo no-cors no permite leer el contenido, pero intentamos de todos modos
+        try {
+          html = await response.text();
+          if (html) {
+            console.log(`Solicitud no-cors produjo algún contenido para: ${urlToFetch}`);
+            return html;
+          }
+        } catch (e) {
+          console.error(`No se pudo leer la respuesta no-cors: ${urlToFetch}`);
+        }
+      } catch (error) {
+        console.error(`Solicitud no-cors también falló: ${urlToFetch}`);
+      }
+      
+      // Si llegamos aquí, todas las opciones fallaron
+      throw fetchError || new Error(`No se pudo acceder a: ${urlToFetch}`);
+    };
     
     // Función de rastreo recursiva
     const crawlPage = async (pageUrl: string, depth: number = 0): Promise<void> => {
       // Saltar si ya visitada o máxima profundidad alcanzada
       if (visitedUrls.has(pageUrl) || depth > options.maxDepth) {
-        return;
-      }
-      
-      // Verificar si la URL es válida
-      try {
-        new URL(pageUrl);
-      } catch (e) {
-        console.error(`URL inválida: ${pageUrl}`);
         return;
       }
       
@@ -119,28 +225,38 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
         const processedProducts = pageProducts.map(product => ({
           ...product,
           id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
-          url: product.url || pageUrl
+          url: product.url || pageUrl,
+          siteSource: product.siteSource || baseUrlObj.hostname
         }));
         
         // Guardar productos
         if (processedProducts.length > 0) {
           console.log(`Se encontraron ${processedProducts.length} productos en ${pageUrl}`);
-          allProducts.push(...processedProducts);
+          
+          // Filtrar productos duplicados antes de añadirlos
+          const existingIds = new Set(allProducts.map(p => p.id));
+          const newProducts = processedProducts.filter(p => !existingIds.has(p.id));
+          
+          allProducts.push(...newProducts);
+          console.log(`Añadidos ${newProducts.length} productos nuevos. Total actual: ${allProducts.length}`);
         }
         
         // Almacenar información de la tienda solo desde la primera página
         if (depth === 0 && result.data?.storeInfo) {
           storeInfo = result.data.storeInfo;
+          console.log(`Información de la tienda guardada: ${storeInfo.name}`);
         }
         
         // Almacenar información de contacto solo desde la primera página
         if (depth === 0 && result.data?.contactInfo) {
           contactInfo = result.data.contactInfo;
+          console.log(`Información de contacto guardada`);
         }
         
         // Si la opción recursiva está habilitada, extraer y seguir enlaces
         if (options.recursive && depth < options.maxDepth) {
           const linksData = result.data?.links || [];
+          console.log(`Se encontraron ${linksData.length} enlaces potenciales en ${pageUrl}`);
           
           // Filtrar enlaces a seguir - asegurar que todos sean strings
           const validLinks: string[] = [];
@@ -153,15 +269,12 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
             
             try {
               // Asegurar que el enlace sea válido
-              const linkUrl = new URL(link);
+              const normalizedLink = normalizeUrl(link);
               
-              // Asegurar que el enlace sea del mismo dominio
-              if (linkUrl.hostname !== baseUrlObj.hostname) {
+              // Solo seguir enlaces del mismo dominio
+              if (!isSameDomain(normalizedLink)) {
                 continue;
               }
-              
-              // Normalizar la URL (eliminar barras finales, parámetros de consulta, etc.)
-              const normalizedLink = `${linkUrl.protocol}//${linkUrl.hostname}${linkUrl.pathname}`;
               
               // Verificar si es una página de producto
               const isProductPage = normalizedLink.includes('/producto/') || 
@@ -179,15 +292,15 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
               
               // Verificar si debemos visitar este enlace
               if (isCategoryPage || (options.includeProductPages && isProductPage)) {
-                validLinks.push(link);
+                validLinks.push(normalizedLink);
               }
             } catch (e) {
-              console.error(`Enlace inválido: ${link}`);
+              console.error(`Enlace inválido: ${link}`, e);
             }
           }
           
           const uniqueLinks = [...new Set(validLinks)]; // Eliminar duplicados
-          console.log(`Se encontraron ${uniqueLinks.length} subpáginas para rastrear desde ${pageUrl}`);
+          console.log(`Se encontraron ${uniqueLinks.length} subpáginas válidas para rastrear desde ${pageUrl}`);
           
           // Rastrear subpáginas en paralelo con un límite
           const parallelLimit = 3; // Máximo de solicitudes paralelas
@@ -222,35 +335,17 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
     // Si encontramos pocos productos, intentar URLs de respaldo
     if (allProducts.length < 5) {
       console.log("Pocos productos encontrados. Intentando URLs de respaldo...");
-      for (const backupUrl of BACKUP_URLS) {
-        if (!visitedUrls.has(backupUrl) && allProducts.length < 10) {
+      
+      for (const backupPath of BACKUP_URLS) {
+        const backupUrl = `${baseUrlObj.origin}${backupPath}`;
+        if (!visitedUrls.has(backupUrl)) {
           console.log(`Probando URL de respaldo: ${backupUrl}`);
           await crawlPage(backupUrl, 0);
-        }
-      }
-    }
-    
-    // Si aún encontramos pocos productos, intentar obtener todas las páginas de categorías directamente
-    if (allProducts.length < 10) {
-      console.log("Aún pocos productos encontrados. Intentando todos los patrones comunes de páginas de categorías...");
-      
-      // Patrones comunes de URL de categoría
-      const categoryPatterns = [
-        "/categoria-producto/",
-        "/categoria/",
-        "/category/",
-        "/categorias/",
-        "/categories/",
-        "/productos/",
-        "/products/",
-        "/shop/",
-        "/tienda/"
-      ];
-      
-      for (const pattern of categoryPatterns) {
-        const categoryUrl = `${baseUrlObj.origin}${pattern}`;
-        if (!visitedUrls.has(categoryUrl)) {
-          await crawlPage(categoryUrl, 0);
+          
+          // Si ya encontramos suficientes productos, detenerse
+          if (allProducts.length >= 10) {
+            break;
+          }
         }
       }
     }
@@ -276,6 +371,16 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
     });
     
     console.log(`Rastreo completado con ${visitedUrls.size} páginas visitadas. Se encontraron ${cleanedProducts.length} productos únicos.`);
+    
+    // Si no encontramos ningún producto, enviar mensaje de error pero sin fallar la operación
+    if (cleanedProducts.length === 0) {
+      return {
+        success: true,
+        products: [],
+        error: "No se encontraron productos en el sitio web. Puede que el sitio esté protegido contra rastreo o utilice tecnologías que no podemos procesar.",
+        lastUpdated: new Date().toISOString(),
+      };
+    }
     
     return {
       success: cleanedProducts.length > 0,
