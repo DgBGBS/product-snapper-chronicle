@@ -120,22 +120,24 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
         
         // If recursive option is enabled, extract and follow links
         if (options.recursive && depth < options.maxDepth) {
-          const links = result.data?.links || [];
+          const linksData = result.data?.links || [];
           
-          // Filter links to follow
-          const validLinks = links.filter((link: any) => {
+          // Filter links to follow - ensure they are all strings
+          const validLinks: string[] = [];
+          
+          for (const link of linksData) {
+            // Skip if link is not a string
+            if (typeof link !== 'string') {
+              continue;
+            }
+            
             try {
-              // Skip if link is not a string
-              if (typeof link !== 'string') {
-                return false;
-              }
-              
               // Ensure link is valid
               const linkUrl = new URL(link);
               
               // Ensure link is from the same domain
               if (linkUrl.hostname !== baseUrlObj.hostname) {
-                return false;
+                continue;
               }
               
               // Normalize the URL (remove trailing slashes, query params, etc)
@@ -143,24 +145,25 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
               
               // Check if it's a product page
               const isProductPage = normalizedLink.includes('/producto/') || 
-                                 normalizedLink.includes('/product/') || 
-                                 normalizedLink.includes('/item/') ||
-                                 normalizedLink.match(/\/p\/[\w-]+\/?$/);
+                               normalizedLink.includes('/product/') || 
+                               normalizedLink.includes('/item/') ||
+                               normalizedLink.match(/\/p\/[\w-]+\/?$/);
               
               // Check if it's a category page
               const isCategoryPage = normalizedLink.includes('/categoria/') || 
-                                  normalizedLink.includes('/category/') || 
-                                  normalizedLink.includes('/tienda/') ||
-                                  normalizedLink.includes('/shop/') ||
-                                  normalizedLink.match(/\/c\/[\w-]+\/?$/);
+                                normalizedLink.includes('/category/') || 
+                                normalizedLink.includes('/tienda/') ||
+                                normalizedLink.includes('/shop/') ||
+                                normalizedLink.match(/\/c\/[\w-]+\/?$/);
               
               // Check if we should visit this link
-              return isCategoryPage || (options.includeProductPages && isProductPage);
+              if (isCategoryPage || (options.includeProductPages && isProductPage)) {
+                validLinks.push(link);
+              }
             } catch (e) {
               console.error(`Invalid link: ${link}`);
-              return false;
             }
-          });
+          }
           
           const uniqueLinks = [...new Set(validLinks)]; // Remove duplicates
           console.log(`Found ${uniqueLinks.length} subpages to crawl from ${pageUrl}`);
