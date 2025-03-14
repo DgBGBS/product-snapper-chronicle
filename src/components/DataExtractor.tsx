@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { scrapeProducts, type Product, type ScrapeResult } from '@/utils/scraper';
 import { saveToGoogleSheets, setupScheduledTask } from '@/utils/storage';
 
@@ -26,6 +27,10 @@ const DataExtractor = ({
   const [targetUrl, setTargetUrl] = useState<string>('https://profesa.info/tienda');
   const [updateInterval, setUpdateInterval] = useState<string>(autoFetchInterval.toString());
   const [isRealtime, setIsRealtime] = useState<boolean>(false);
+  const [isRecursive, setIsRecursive] = useState<boolean>(true);
+  const [maxDepth, setMaxDepth] = useState<string>("2");
+  const [includeProductPages, setIncludeProductPages] = useState<boolean>(true);
+  const [advancedOptionsVisible, setAdvancedOptionsVisible] = useState<boolean>(false);
   const fetchingRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
   
@@ -63,14 +68,19 @@ const DataExtractor = ({
     try {
       // Simulate progress updates during fetch
       const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 70));
-      }, 300);
+        setProgress(prev => Math.min(prev + 5, 70));
+      }, 500);
       
       // Log start of scraping
-      console.log(`Starting to scrape products from ${targetSiteUrl}`);
+      console.log(`Starting to scrape products from ${targetSiteUrl} with recursive=${isRecursive}, maxDepth=${maxDepth}`);
       
-      // Fetch data
-      const result: ScrapeResult = await scrapeProducts(targetSiteUrl);
+      // Fetch data with recursive options
+      const result: ScrapeResult = await scrapeProducts(targetSiteUrl, {
+        recursive: isRecursive,
+        maxDepth: parseInt(maxDepth, 10),
+        includeProductPages: includeProductPages
+      });
+      
       clearInterval(progressInterval);
       
       if (result.success) {
@@ -133,7 +143,7 @@ const DataExtractor = ({
       setTimeout(() => setProgress(0), 1000);
       fetchingRef.current = false;
     }
-  }, [onDataFetched, toast, targetUrl]);
+  }, [onDataFetched, toast, targetUrl, isRecursive, maxDepth, includeProductPages]);
   
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
@@ -248,23 +258,85 @@ const DataExtractor = ({
         </div>
       </div>
       
-      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
-        <Input
-          type="url"
-          placeholder="URL del sitio web (ej: https://tienda.com)"
-          value={targetUrl}
-          onChange={(e) => setTargetUrl(e.target.value)}
-          className="flex-grow"
-          required
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            type="url"
+            placeholder="URL del sitio web (ej: https://tienda.com)"
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+            className="flex-grow"
+            required
+          />
+          
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="transition-all duration-300"
+          >
+            {isLoading ? "Extrayendo..." : "Extraer Ahora"}
+          </Button>
+        </div>
         
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="transition-all duration-300"
-        >
-          {isLoading ? "Extrayendo..." : "Extraer Ahora"}
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setAdvancedOptionsVisible(!advancedOptionsVisible)}
+          >
+            {advancedOptionsVisible ? "Ocultar opciones avanzadas" : "Mostrar opciones avanzadas"}
+          </Button>
+        </div>
+        
+        {advancedOptionsVisible && (
+          <div className="border rounded-md p-4 space-y-4 bg-muted/30">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="recursive-scrape"
+                checked={isRecursive}
+                onCheckedChange={(checked) => setIsRecursive(checked === true)}
+              />
+              <Label htmlFor="recursive-scrape">Rastreo recursivo de subpáginas</Label>
+            </div>
+            
+            {isRecursive && (
+              <>
+                <div className="flex flex-col space-y-2">
+                  <Label htmlFor="max-depth">Profundidad máxima de rastreo:</Label>
+                  <Select
+                    value={maxDepth}
+                    onValueChange={setMaxDepth}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar profundidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 nivel (sólo página actual)</SelectItem>
+                      <SelectItem value="2">2 niveles (página actual + subpáginas)</SelectItem>
+                      <SelectItem value="3">3 niveles (profundidad completa)</SelectItem>
+                      <SelectItem value="4">4 niveles (rastreo extenso)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="include-product-pages"
+                    checked={includeProductPages}
+                    onCheckedChange={(checked) => setIncludeProductPages(checked === true)}
+                  />
+                  <Label htmlFor="include-product-pages">Incluir páginas de productos individuales</Label>
+                </div>
+              </>
+            )}
+            
+            <p className="text-xs text-muted-foreground">
+              El rastreo recursivo busca en las subpáginas y categorías para encontrar más productos. 
+              A mayor profundidad, más productos encontrará pero también tardará más tiempo.
+            </p>
+          </div>
+        )}
       </form>
       
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -301,10 +373,17 @@ const DataExtractor = ({
       </div>
       
       {(isLoading || progress > 0) && (
-        <Progress 
-          value={progress} 
-          className="h-2 transition-all" 
-        />
+        <div className="space-y-1">
+          <Progress 
+            value={progress} 
+            className="h-2 transition-all" 
+          />
+          <p className="text-xs text-muted-foreground">
+            {isRecursive 
+              ? "Rastreando páginas recursivamente, esto puede tardar más tiempo..."
+              : "Extrayendo datos..."}
+          </p>
+        </div>
       )}
       
       {lastUpdated && (

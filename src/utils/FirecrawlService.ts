@@ -1,4 +1,3 @@
-
 interface ErrorResponse {
   success: false;
   error: string;
@@ -12,6 +11,7 @@ interface CrawlStatusResponse {
   creditsUsed: number;
   expiresAt: string;
   data: any[];
+  links?: string[];
 }
 
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
@@ -60,6 +60,15 @@ export class FirecrawlService {
           return this.extractProductData(Array.from(altProductContainers), url, doc);
         }
         
+        // Try to extract a single product if this is a product detail page
+        if (url.includes('/producto/') || url.includes('/product/')) {
+          console.log('This appears to be a product detail page, attempting to extract single product');
+          const productDetail = this.extractSingleProductDetail(doc, url);
+          if (productDetail.success) {
+            return productDetail;
+          }
+        }
+        
         // Last resort: try to get all elements that might be products
         const possibleProductElements = Array.from(doc.querySelectorAll('*')).filter(el => {
           const classes = el.className?.toString() || '';
@@ -73,7 +82,15 @@ export class FirecrawlService {
           return this.extractProductData(possibleProductElements, url, doc);
         }
         
-        throw new Error('No product elements found on the page');
+        // If no products found, still return success with links
+        return {
+          success: true,
+          data: {
+            status: 'completed',
+            data: [],
+            links: this.extractAllLinks(doc, url)
+          }
+        };
       }
       
       return this.extractProductData(Array.from(productContainers), url, doc);
@@ -84,6 +101,130 @@ export class FirecrawlService {
         error: error instanceof Error ? error.message : 'Failed to scrape website'
       };
     }
+  }
+  
+  // Extract all links from the page for recursive crawling
+  private static extractAllLinks(doc: Document, baseUrl: string): string[] {
+    try {
+      const links = Array.from(doc.querySelectorAll('a[href]'))
+        .map(a => a.getAttribute('href'))
+        .filter(href => href && !href.startsWith('#') && !href.startsWith('javascript:')) as string[];
+      
+      // Convert relative URLs to absolute
+      return links.map(href => {
+        try {
+          if (href.startsWith('http')) {
+            return href;
+          }
+          
+          // Handle relative URLs
+          const base = new URL(baseUrl);
+          if (href.startsWith('/')) {
+            return `${base.origin}${href}`;
+          } else {
+            // Handle path-relative URLs
+            const path = base.pathname.split('/').slice(0, -1).join('/');
+            return `${base.origin}${path}/${href}`;
+          }
+        } catch {
+          return href; // Return as-is if URL parsing fails
+        }
+      });
+    } catch (error) {
+      console.error('Error extracting links:', error);
+      return [];
+    }
+  }
+  
+  // Extract a single product from a product detail page
+  private static extractSingleProductDetail(doc: Document, url: string): { success: boolean; data?: any; error?: string } {
+    try {
+      const productTitle = doc.querySelector('h1.product_title, .product-title, .entry-title');
+      const productPrice = doc.querySelector('.price, .product-price, [class*="price"]');
+      const productImage = doc.querySelector('.product-image img, .woocommerce-product-gallery img, .product img');
+      const productDesc = doc.querySelector('.description, .woocommerce-product-details__short-description, [class*="description"]');
+      const productSku = doc.querySelector('.sku, [class*="sku"]');
+      const productBrand = doc.querySelector('.brand, [class*="brand"], [class*="manufacturer"]');
+      
+      if (!productTitle) {
+        return { 
+          success: true, 
+          data: {
+            status: 'completed',
+            data: [],
+            links: this.extractAllLinks(doc, url)
+          }
+        };
+      }
+      
+      // Extract additional images
+      const galleryImages = Array.from(doc.querySelectorAll('.product-gallery img, .woocommerce-product-gallery img, .thumbnails img'))
+        .map(img => img.getAttribute('src') || img.getAttribute('data-src') || '')
+        .filter(src => src && src.length > 0);
+      
+      // Extract specifications/attributes
+      const specsList: Record<string, string> = {};
+      const specRows = doc.querySelectorAll('.product-attributes tr, .woocommerce-product-attributes tr, .specifications li');
+      specRows.forEach(row => {
+        const label = row.querySelector('th, .name, dt')?.textContent?.trim();
+        const value = row.querySelector('td, .value, dd')?.textContent?.trim();
+        if (label && value) {
+          specsList[label] = value;
+        }
+      });
+      
+      const siteName = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || 
+                        doc.querySelector('.site-title')?.textContent || 
+                        new URL(url).hostname;
+      
+      // Create a single product object
+      const product = {
+        id: `product-${Date.now()}`,
+        name: productTitle?.textContent?.trim() || 'Unknown Product',
+        price: productPrice?.textContent?.trim() || 'Price not available',
+        category: this.extractCategoryFromBreadcrumbs(doc) || 'Uncategorized',
+        imageUrl: productImage?.getAttribute('src') || '',
+        url: url,
+        description: productDesc?.textContent?.trim(),
+        additionalImages: galleryImages.length > 0 ? galleryImages : undefined,
+        sku: productSku?.textContent?.trim(),
+        brand: productBrand?.textContent?.trim(),
+        specifications: Object.keys(specsList).length > 0 ? specsList : undefined,
+        siteSource: siteName
+      };
+      
+      return {
+        success: true,
+        data: {
+          status: 'completed',
+          completed: 1,
+          total: 1,
+          creditsUsed: 0,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          data: [product],
+          links: this.extractAllLinks(doc, url)
+        }
+      };
+    } catch (error) {
+      console.error('Error extracting single product:', error);
+      return {
+        success: false,
+        error: 'Failed to extract product details'
+      };
+    }
+  }
+  
+  // Extract category from breadcrumbs
+  private static extractCategoryFromBreadcrumbs(doc: Document): string | undefined {
+    const breadcrumbs = doc.querySelector('.woocommerce-breadcrumb, .breadcrumb, [class*="breadcrumb"]');
+    if (breadcrumbs) {
+      const breadcrumbText = breadcrumbs.textContent || '';
+      const breadcrumbParts = breadcrumbText.split(/[\/\>\|]/);
+      if (breadcrumbParts.length > 1) {
+        return breadcrumbParts[1].trim();
+      }
+    }
+    return undefined;
   }
   
   private static extractProductData(productElements: Element[], baseUrl: string, fullDoc: Document): { success: boolean; data?: any; error?: string } {
@@ -335,6 +476,10 @@ export class FirecrawlService {
         if (addressMatch && addressMatch[1]) contactInfo.address = addressMatch[1].trim();
       });
       
+      // Extract all links for recursive crawling
+      const links = this.extractAllLinks(fullDoc, baseUrl);
+      console.log(`Extracted ${links.length} links from ${baseUrl}`);
+      
       console.log(`Successfully extracted ${products.length} products with enhanced data fields`);
       
       return {
@@ -347,7 +492,8 @@ export class FirecrawlService {
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           data: products,
           storeInfo: storeInfo,
-          contactInfo: Object.keys(contactInfo).length > 0 ? contactInfo : undefined
+          contactInfo: Object.keys(contactInfo).length > 0 ? contactInfo : undefined,
+          links: links
         }
       };
     } catch (error) {
