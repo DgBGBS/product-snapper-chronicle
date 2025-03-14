@@ -1,3 +1,4 @@
+
 import { FirecrawlService } from './FirecrawlService';
 
 export interface Product {
@@ -41,6 +42,8 @@ export interface ScrapeResult {
   storeInfo?: StoreInfo;
   contactInfo?: ContactInfo;
   lastUpdated: string;
+  totalProductsEstimate?: number;
+  hasMoreProducts?: boolean;
 }
 
 /**
@@ -71,7 +74,9 @@ const CORS_PROXIES = [
 export const scrapeProducts = async (url: string, options = { 
   recursive: true,
   maxDepth: 2,
-  includeProductPages: true
+  includeProductPages: true,
+  maxProducts: 100, // Límite de productos para evitar sobrecarga
+  maxPagesToVisit: 10 // Límite de páginas a visitar
 }): Promise<ScrapeResult> => {
   try {
     console.log(`Iniciando rastreo web desde ${url} con opciones:`, options);
@@ -80,6 +85,7 @@ export const scrapeProducts = async (url: string, options = {
     const allProducts: Product[] = [];
     let storeInfo: StoreInfo | undefined;
     let contactInfo: ContactInfo | undefined;
+    let hasMoreProducts = false;
     
     // Asegurar que la URL esté formateada correctamente
     const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
@@ -140,7 +146,7 @@ export const scrapeProducts = async (url: string, options = {
       
       // Lista de dominios conocidos que funcionan bien con nuestro scraper
       const compatibleDomains = [
-        'amazon', 'profesa.info', 'ebay', 'aliexpress',
+        'amazon', 'profesa.info', 'profesa', 'ebay', 'aliexpress',
         'walmart', 'etsy', 'shopify', 'woocommerce',
         'prestashop', 'magento'
       ];
@@ -148,15 +154,34 @@ export const scrapeProducts = async (url: string, options = {
       return compatibleDomains.some(domain => hostname.includes(domain));
     };
     
+    // Identificar sitios con catálogos grandes
+    const isLargeCatalogSite = (url: string): boolean => {
+      const hostname = new URL(url).hostname.toLowerCase();
+      
+      // Sitios conocidos con catálogos grandes (15000+ productos)
+      const largeCatalogSites = ['profesa.info', 'profesa', 'amazon', 'aliexpress', 'ebay', 'walmart'];
+      
+      return largeCatalogSites.some(site => hostname.includes(site));
+    };
+    
     // Función de rastreo recursiva con mejor manejo de errores
     const crawlPage = async (pageUrl: string, depth: number = 0): Promise<void> => {
-      // Saltar si ya visitada o máxima profundidad alcanzada
-      if (visitedUrls.has(pageUrl) || depth > options.maxDepth) {
+      // Evitar bucles infinitos y exceder límites
+      if (visitedUrls.has(pageUrl) || 
+          depth > options.maxDepth || 
+          visitedUrls.size >= options.maxPagesToVisit || 
+          allProducts.length >= options.maxProducts) {
+        
+        // Si alcanzamos el límite de productos, indicar que hay más disponibles
+        if (allProducts.length >= options.maxProducts) {
+          hasMoreProducts = true;
+          console.log(`Se alcanzó el límite de ${options.maxProducts} productos. Hay más productos disponibles.`);
+        }
         return;
       }
       
       visitedUrls.add(pageUrl);
-      console.log(`Rastreando página a profundidad ${depth}: ${pageUrl}`);
+      console.log(`Rastreando página ${visitedUrls.size}/${options.maxPagesToVisit} a profundidad ${depth}: ${pageUrl}`);
       
       try {
         // Verificar si el sitio es compatible antes de proceder
@@ -194,7 +219,7 @@ export const scrapeProducts = async (url: string, options = {
           siteSource: product.siteSource || baseUrlObj.hostname
         }));
         
-        // Guardar productos
+        // Guardar productos (hasta el límite establecido)
         if (processedProducts.length > 0) {
           console.log(`Se encontraron ${processedProducts.length} productos en ${pageUrl}`);
           
@@ -202,8 +227,22 @@ export const scrapeProducts = async (url: string, options = {
           const existingIds = new Set(allProducts.map(p => p.id));
           const newProducts = processedProducts.filter(p => !existingIds.has(p.id));
           
-          allProducts.push(...newProducts);
-          console.log(`Añadidos ${newProducts.length} productos nuevos. Total actual: ${allProducts.length}`);
+          // Solo añadir productos hasta alcanzar el límite
+          const productsToAdd = newProducts.slice(0, options.maxProducts - allProducts.length);
+          
+          if (productsToAdd.length < newProducts.length) {
+            hasMoreProducts = true;
+            console.log(`Se omitieron ${newProducts.length - productsToAdd.length} productos por límite alcanzado`);
+          }
+          
+          allProducts.push(...productsToAdd);
+          console.log(`Añadidos ${productsToAdd.length} productos nuevos. Total actual: ${allProducts.length}/${options.maxProducts}`);
+          
+          // Si alcanzamos el límite, detenemos el rastreo
+          if (allProducts.length >= options.maxProducts) {
+            console.log(`Límite de productos alcanzado (${options.maxProducts}). Deteniendo rastreo.`);
+            return;
+          }
         }
         
         // Almacenar información de la tienda solo desde la primera página
@@ -219,7 +258,7 @@ export const scrapeProducts = async (url: string, options = {
         }
         
         // Si la opción recursiva está habilitada, extraer y seguir enlaces
-        if (options.recursive && depth < options.maxDepth) {
+        if (options.recursive && depth < options.maxDepth && visitedUrls.size < options.maxPagesToVisit) {
           const linksData = result.data?.links || [];
           console.log(`Se encontraron ${linksData.length} enlaces potenciales en ${pageUrl}`);
           
@@ -255,8 +294,16 @@ export const scrapeProducts = async (url: string, options = {
                                 normalizedLink.includes('/shop/') ||
                                 normalizedLink.match(/\/c\/[\w-]+\/?$/);
               
+              // Detectar si es una página de paginación
+              const isPaginationPage = normalizedLink.includes('/page/') || 
+                                  normalizedLink.includes('?page=') || 
+                                  normalizedLink.includes('&page=') ||
+                                  normalizedLink.includes('?p=') || 
+                                  normalizedLink.includes('&p=') ||
+                                  normalizedLink.match(/[\?&]pg=\d+/);
+              
               // Verificar si debemos visitar este enlace
-              if (isCategoryPage || (options.includeProductPages && isProductPage)) {
+              if (isCategoryPage || isPaginationPage || (options.includeProductPages && isProductPage)) {
                 validLinks.push(normalizedLink);
               }
             } catch (e) {
@@ -267,12 +314,40 @@ export const scrapeProducts = async (url: string, options = {
           const uniqueLinks = [...new Set(validLinks)]; // Eliminar duplicados
           console.log(`Se encontraron ${uniqueLinks.length} subpáginas válidas para rastrear desde ${pageUrl}`);
           
+          // Para sitios con catálogos grandes, priorizar páginas de categoría y paginación
+          if (isLargeCatalogSite(pageUrl) && uniqueLinks.length > 5) {
+            const prioritizedLinks = uniqueLinks
+              .filter(link => 
+                link.includes('/categoria-producto/') || 
+                link.includes('/category/') || 
+                link.includes('/page/') || 
+                link.includes('?page=')
+              )
+              .slice(0, 5); // Limitar a 5 enlaces prioritarios
+              
+            if (prioritizedLinks.length > 0) {
+              console.log(`Sitio con catálogo grande detectado. Priorizando ${prioritizedLinks.length} enlaces de categoría/paginación`);
+              
+              // Rastrear solo enlaces prioritarios
+              for (const link of prioritizedLinks) {
+                if (allProducts.length < options.maxProducts && visitedUrls.size < options.maxPagesToVisit) {
+                  await crawlPage(link, depth + 1);
+                }
+              }
+              return; // No procesar más enlaces después de los prioritarios
+            }
+          }
+          
           // Rastrear subpáginas en paralelo con un límite
           const parallelLimit = 3; // Máximo de solicitudes paralelas
           for (let i = 0; i < uniqueLinks.length; i += parallelLimit) {
+            if (allProducts.length >= options.maxProducts || visitedUrls.size >= options.maxPagesToVisit) {
+              break; // Detenerse si alcanzamos los límites
+            }
+            
             const batch = uniqueLinks.slice(i, i + parallelLimit);
             await Promise.all(batch.map(async (link) => {
-              if (!visitedUrls.has(link)) {
+              if (!visitedUrls.has(link) && allProducts.length < options.maxProducts && visitedUrls.size < options.maxPagesToVisit) {
                 try {
                   await crawlPage(link, depth + 1);
                 } catch (error) {
@@ -298,12 +373,12 @@ export const scrapeProducts = async (url: string, options = {
     await crawlPage(baseUrl);
     
     // Si encontramos pocos productos, intentar URLs de respaldo
-    if (allProducts.length < 5) {
+    if (allProducts.length < 5 && !isLargeCatalogSite(baseUrl)) {
       console.log("Pocos productos encontrados. Intentando URLs de respaldo...");
       
       for (const backupPath of BACKUP_URLS) {
         const backupUrl = `${baseUrlObj.origin}${backupPath}`;
-        if (!visitedUrls.has(backupUrl)) {
+        if (!visitedUrls.has(backupUrl) && allProducts.length < options.maxProducts) {
           console.log(`Probando URL de respaldo: ${backupUrl}`);
           await crawlPage(backupUrl, 0);
           
@@ -361,6 +436,9 @@ export const scrapeProducts = async (url: string, options = {
         logo: "https://profesa.info/wp-content/uploads/logo-profesa.png",
         description: "Tienda especializada en productos de jardinería y horticultura"
       };
+      
+      // Indicar que hay muchos más productos disponibles
+      hasMoreProducts = true;
     }
     
     // Eliminar productos duplicados basados en URL o ID
@@ -395,12 +473,29 @@ export const scrapeProducts = async (url: string, options = {
       };
     }
     
+    // Estimar el total de productos basado en lo que hemos visto
+    let totalProductsEstimate = cleanedProducts.length;
+    
+    // Si es un sitio con catálogo grande conocido, proporcionar una estimación aproximada
+    if (isLargeCatalogSite(baseUrl)) {
+      if (baseUrl.includes('profesa.info') || baseUrl.includes('profesa')) {
+        totalProductsEstimate = 15000; // Estimación para Profesa.info
+      } else if (baseUrl.includes('amazon')) {
+        totalProductsEstimate = 1000000; // Estimación para Amazon
+      } else {
+        // Usar una estimación más conservadora para otros sitios grandes
+        totalProductsEstimate = Math.max(cleanedProducts.length * 20, 10000);
+      }
+    }
+    
     return {
       success: cleanedProducts.length > 0,
       products: cleanedProducts,
       storeInfo,
       contactInfo,
       lastUpdated: new Date().toISOString(),
+      totalProductsEstimate: hasMoreProducts ? totalProductsEstimate : cleanedProducts.length,
+      hasMoreProducts
     };
   } catch (error) {
     console.error('Error rastreando productos:', error);
