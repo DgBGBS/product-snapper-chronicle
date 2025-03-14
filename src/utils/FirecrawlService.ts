@@ -1,3 +1,4 @@
+
 interface ErrorResponse {
   success: false;
   error: string;
@@ -21,7 +22,7 @@ export class FirecrawlService {
   
   static saveApiKey(apiKey: string): void {
     localStorage.setItem(this.API_KEY_STORAGE_KEY, apiKey);
-    console.log('API key saved successfully');
+    console.log('Clave API guardada correctamente');
   }
 
   static getApiKey(): string | null {
@@ -30,9 +31,9 @@ export class FirecrawlService {
 
   static async crawlWebsite(url: string): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      console.log(`Starting web scraping for: ${url}`);
+      console.log(`Iniciando rastreo web para: ${url}`);
       
-      // Use alternative CORS proxies to avoid issues
+      // Usar proxies CORS alternativos para evitar problemas
       const corsProxies = [
         `https://corsproxy.io/?${encodeURIComponent(url)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
@@ -42,7 +43,7 @@ export class FirecrawlService {
       let html = '';
       let proxySuccess = false;
       
-      // Try each proxy until one works
+      // Intentar cada proxy hasta que uno funcione
       for (const proxyUrl of corsProxies) {
         try {
           const response = await fetch(proxyUrl);
@@ -50,19 +51,19 @@ export class FirecrawlService {
           if (response.ok) {
             html = await response.text();
             proxySuccess = true;
-            console.log(`Successfully fetched HTML content using proxy: ${proxyUrl}`);
+            console.log(`HTML obtenido correctamente usando proxy: ${proxyUrl}`);
             break;
           }
         } catch (proxyError) {
-          console.log(`Proxy failed: ${proxyUrl}`, proxyError);
-          // Continue to next proxy
+          console.log(`Proxy falló: ${proxyUrl}`, proxyError);
+          // Continuar con el siguiente proxy
         }
       }
       
-      // If all proxies failed, try direct fetch as a last resort
+      // Si todos los proxies fallaron, intentar una solicitud directa como último recurso
       if (!proxySuccess) {
         try {
-          console.log("All proxies failed, attempting direct fetch");
+          console.log("Todos los proxies fallaron, intentando solicitud directa");
           const response = await fetch(url, {
             mode: 'no-cors',
             headers: {
@@ -70,62 +71,58 @@ export class FirecrawlService {
             }
           });
           
-          // no-cors mode returns an opaque response
-          // We can't check status or read content normally
-          // But we can try to process it anyway
+          // El modo no-cors devuelve una respuesta opaca
+          // No podemos verificar el estado ni leer el contenido normalmente
+          // Pero podemos intentar procesarlo de todos modos
           const text = await response.text().catch(() => '');
           
           if (text) {
             html = text;
-            console.log("Direct fetch provided some content");
+            console.log("La solicitud directa proporcionó algún contenido");
           } else {
-            throw new Error("Could not retrieve content via direct fetch");
+            throw new Error("No se pudo recuperar contenido mediante solicitud directa");
           }
         } catch (directError) {
-          console.error("Direct fetch also failed:", directError);
-          throw new Error("All fetch methods failed");
+          console.error("La solicitud directa también falló:", directError);
+          throw new Error("Todos los métodos de solicitud fallaron");
         }
       }
       
-      // Check if we have any HTML content to parse
+      // Verificar si tenemos contenido HTML para analizar
       if (!html || html.length < 100) {
-        console.error("Retrieved HTML is too short or empty");
+        console.error("El HTML recuperado es demasiado corto o está vacío");
         return {
-          success: true,
-          data: {
-            status: 'completed',
-            data: this.generateDemoProducts(url),
-            links: []
-          }
+          success: false,
+          error: "No se pudo obtener el contenido de la página"
         };
       }
       
-      // Parse the HTML to extract product information
+      // Analizar el HTML para extraer información del producto
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       
-      // Extract product information using more robust selectors
+      // Extraer información del producto usando selectores más robustos
       const productContainers = doc.querySelectorAll('.products .product, ul.products li.product, .product-grid .product, .woocommerce-loop-product, .product-item');
-      console.log(`Found ${productContainers.length} product elements`);
+      console.log(`Se encontraron ${productContainers.length} elementos de producto`);
       
       if (productContainers.length === 0) {
-        // Try alternative selectors if the main one doesn't find anything
+        // Probar selectores alternativos si el principal no encuentra nada
         const altProductContainers = doc.querySelectorAll('.product, .woocommerce-product, article, .item, [data-product-id]');
         if (altProductContainers.length > 0) {
-          console.log(`Found ${altProductContainers.length} product elements with alternative selector`);
+          console.log(`Se encontraron ${altProductContainers.length} elementos de producto con selector alternativo`);
           return this.extractProductData(Array.from(altProductContainers), url, doc);
         }
         
-        // Try to extract a single product if this is a product detail page
+        // Intentar extraer un solo producto si es una página de detalle de producto
         if (url.includes('/producto/') || url.includes('/product/')) {
-          console.log('This appears to be a product detail page, attempting to extract single product');
+          console.log('Parece ser una página de detalle de producto, intentando extraer producto individual');
           const productDetail = this.extractSingleProductDetail(doc, url);
           if (productDetail.success) {
             return productDetail;
           }
         }
         
-        // Last resort: try to get all elements that might be products
+        // Último recurso: intentar obtener todos los elementos que podrían ser productos
         const possibleProductElements = Array.from(doc.querySelectorAll('*')).filter(el => {
           const classes = el.className?.toString() || '';
           const id = el.id?.toString() || '';
@@ -134,17 +131,18 @@ export class FirecrawlService {
         });
         
         if (possibleProductElements.length > 0) {
-          console.log(`Found ${possibleProductElements.length} possible product elements`);
+          console.log(`Se encontraron ${possibleProductElements.length} posibles elementos de producto`);
           return this.extractProductData(possibleProductElements, url, doc);
         }
         
-        // If no products found, return demo products
-        console.log("No products found on the page, generating demo products");
+        // Si no se encuentran productos, devolver error
+        console.log("No se encontraron productos en la página");
         return {
-          success: true,
+          success: false,
+          error: "No se encontraron productos en la página",
           data: {
             status: 'completed',
-            data: this.generateDemoProducts(url),
+            data: [],
             links: this.extractAllLinks(doc, url)
           }
         };
@@ -152,86 +150,53 @@ export class FirecrawlService {
       
       return this.extractProductData(Array.from(productContainers), url, doc);
     } catch (error) {
-      console.error('Error during web scraping:', error);
-      // Return demo products if scraping fails
+      console.error('Error durante el rastreo web:', error);
       return {
-        success: true,
+        success: false,
+        error: error instanceof Error ? error.message : "Error durante el rastreo web",
         data: {
-          status: 'completed',
-          data: this.generateDemoProducts(url),
+          status: 'error',
+          data: [],
           links: []
         }
       };
     }
   }
   
-  // Generate demo products if scraping fails
-  private static generateDemoProducts(baseUrl: string): any[] {
-    console.log("Generating demo products");
-    const demoProducts = [];
-    const categories = ["Electrónica", "Hogar", "Moda", "Deportes", "Juguetes"];
-    
-    for (let i = 1; i <= 15; i++) {
-      const category = categories[Math.floor(Math.random() * categories.length)];
-      demoProducts.push({
-        id: `demo-product-${i}`,
-        name: `Producto Ejemplo ${i}`,
-        price: `$${(Math.random() * 1000 + 10).toFixed(2)}`,
-        category,
-        imageUrl: `https://picsum.photos/seed/${i}/300/300`,
-        url: `${baseUrl}/producto-${i}`,
-        description: `Este es un producto de demostración en la categoría ${category}. Incluye características avanzadas y diseño moderno.`,
-        originalPrice: Math.random() > 0.5 ? `$${(Math.random() * 1500 + 100).toFixed(2)}` : undefined,
-        discount: Math.random() > 0.5 ? "20% off" : undefined,
-        additionalImages: Math.random() > 0.7 ? [
-          `https://picsum.photos/seed/${i}-1/300/300`,
-          `https://picsum.photos/seed/${i}-2/300/300`
-        ] : undefined,
-        sku: `SKU-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-        stockStatus: Math.random() > 0.3 ? "En stock" : "Agotado",
-        rating: `${(Math.random() * 5).toFixed(1)}/5`,
-        brand: `Marca ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}`,
-        siteSource: new URL(baseUrl).hostname
-      });
-    }
-    
-    return demoProducts;
-  }
-  
-  // Extract all links from the page for recursive crawling
+  // Extraer todos los enlaces de la página para rastreo recursivo
   private static extractAllLinks(doc: Document, baseUrl: string): string[] {
     try {
       const links = Array.from(doc.querySelectorAll('a[href]'))
         .map(a => a.getAttribute('href'))
         .filter(href => href && !href.startsWith('#') && !href.startsWith('javascript:')) as string[];
       
-      // Convert relative URLs to absolute
+      // Convertir URLs relativas a absolutas
       return links.map(href => {
         try {
           if (href.startsWith('http')) {
             return href;
           }
           
-          // Handle relative URLs
+          // Manejar URLs relativas
           const base = new URL(baseUrl);
           if (href.startsWith('/')) {
             return `${base.origin}${href}`;
           } else {
-            // Handle path-relative URLs
+            // Manejar URLs relativas a la ruta
             const path = base.pathname.split('/').slice(0, -1).join('/');
             return `${base.origin}${path}/${href}`;
           }
         } catch {
-          return href; // Return as-is if URL parsing fails
+          return href; // Devolver tal cual si el análisis de URL falla
         }
       });
     } catch (error) {
-      console.error('Error extracting links:', error);
+      console.error('Error extrayendo enlaces:', error);
       return [];
     }
   }
   
-  // Extract a single product from a product detail page
+  // Extraer un solo producto de una página de detalle de producto
   private static extractSingleProductDetail(doc: Document, url: string): { success: boolean; data?: any; error?: string } {
     try {
       const productTitle = doc.querySelector('h1.product_title, .product-title, .entry-title');
@@ -243,21 +208,22 @@ export class FirecrawlService {
       
       if (!productTitle) {
         return { 
-          success: true, 
+          success: false, 
+          error: "No se pudo extraer el título del producto",
           data: {
             status: 'completed',
-            data: this.generateDemoProducts(url),
+            data: [],
             links: this.extractAllLinks(doc, url)
           }
         };
       }
       
-      // Extract additional images
+      // Extraer imágenes adicionales
       const galleryImages = Array.from(doc.querySelectorAll('.product-gallery img, .woocommerce-product-gallery img, .thumbnails img'))
         .map(img => img.getAttribute('src') || img.getAttribute('data-src') || '')
         .filter(src => src && src.length > 0);
       
-      // Extract specifications/attributes
+      // Extraer especificaciones/atributos
       const specsList: Record<string, string> = {};
       const specRows = doc.querySelectorAll('.product-attributes tr, .woocommerce-product-attributes tr, .specifications li');
       specRows.forEach(row => {
@@ -272,12 +238,12 @@ export class FirecrawlService {
                         doc.querySelector('.site-title')?.textContent || 
                         new URL(url).hostname;
       
-      // Create a single product object
+      // Crear un objeto de producto único
       const product = {
         id: `product-${Date.now()}`,
-        name: productTitle?.textContent?.trim() || 'Unknown Product',
-        price: productPrice?.textContent?.trim() || 'Price not available',
-        category: this.extractCategoryFromBreadcrumbs(doc) || 'Uncategorized',
+        name: productTitle?.textContent?.trim() || 'Producto Desconocido',
+        price: productPrice?.textContent?.trim() || 'Precio no disponible',
+        category: this.extractCategoryFromBreadcrumbs(doc) || 'Sin categoría',
         imageUrl: productImage?.getAttribute('src') || '',
         url: url,
         description: productDesc?.textContent?.trim(),
@@ -301,19 +267,20 @@ export class FirecrawlService {
         }
       };
     } catch (error) {
-      console.error('Error extracting single product:', error);
+      console.error('Error extrayendo producto individual:', error);
       return {
-        success: true,
+        success: false,
+        error: "Error al extraer producto individual",
         data: {
-          status: 'completed',
-          data: this.generateDemoProducts(url),
+          status: 'error',
+          data: [],
           links: []
         }
       };
     }
   }
   
-  // Extract category from breadcrumbs
+  // Extraer categoría de las migas de pan
   private static extractCategoryFromBreadcrumbs(doc: Document): string | undefined {
     const breadcrumbs = doc.querySelector('.woocommerce-breadcrumb, .breadcrumb, [class*="breadcrumb"]');
     if (breadcrumbs) {
@@ -328,12 +295,12 @@ export class FirecrawlService {
   
   private static extractProductData(productElements: Element[], baseUrl: string, fullDoc: Document): { success: boolean; data?: any; error?: string } {
     try {
-      // Extract site-wide information
+      // Extraer información de todo el sitio
       const siteName = fullDoc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || 
                         fullDoc.querySelector('.site-title')?.textContent || 
                         new URL(baseUrl).hostname;
       
-      // Get all available categories from the page
+      // Obtener todas las categorías disponibles de la página
       const allCategories = new Set<string>();
       fullDoc.querySelectorAll('.product_cat, .product-category, .cat-item, [class*="category"]').forEach(el => {
         const catName = el.textContent?.trim();
@@ -341,7 +308,7 @@ export class FirecrawlService {
       });
       
       const products = productElements.map((el, index) => {
-        // Extract product details with improved selectors
+        // Extraer detalles del producto con selectores mejorados
         const nameEl = el.querySelector('.woocommerce-loop-product__title, h2, .product-title, .name, [class*="title"], [class*="name"]');
         const priceEl = el.querySelector('.price, .product-price, .amount, [class*="price"]');
         const imgEl = el.querySelector('img');
@@ -352,10 +319,10 @@ export class FirecrawlService {
         const ratingEl = el.querySelector('.star-rating, .rating, [class*="rating"]');
         const brandEl = el.querySelector('.brand, .manufacturer, [class*="brand"], [class*="manufacturer"]');
         
-        // Get detailed description
+        // Obtener descripción detallada
         const shortDescEl = el.querySelector('.short-description, .excerpt, [class*="excerpt"], [class*="description"]');
         
-        // Get additional product details
+        // Obtener detalles adicionales del producto
         const metaEls = el.querySelectorAll('.product_meta, .meta, [class*="meta"]');
         const metaData: Record<string, string> = {};
         metaEls.forEach(meta => {
@@ -366,27 +333,27 @@ export class FirecrawlService {
           }
         });
         
-        // Get promotion/discount information
+        // Obtener información de promoción/descuento
         const saleEl = el.querySelector('.onsale, .sale, [class*="sale"], [class*="discount"]');
         const originalPriceEl = el.querySelector('.regular-price, .original-price, del, [class*="regular-price"]');
         
-        // Get category from various sources
+        // Obtener categoría de varias fuentes
         let category = 'Sin categoría';
         if (categoryEl) {
           category = categoryEl.textContent?.trim() || category;
         } else {
-          // Try to extract category from product classes
+          // Intentar extraer categoría de las clases del producto
           const classList = Array.from(el.classList);
           const categoryClass = classList.find(cls => cls.startsWith('product-cat-') || cls.includes('category'));
           if (categoryClass) {
             category = categoryClass.replace('product-cat-', '').replace(/-/g, ' ');
-            // Capitalize first letter of each word
+            // Capitalizar primera letra de cada palabra
             category = category.split(' ')
               .map(word => word.charAt(0).toUpperCase() + word.slice(1))
               .join(' ');
           }
           
-          // If still no category, check for other indicators
+          // Si aún no hay categoría, buscar otros indicadores
           if (category === 'Sin categoría') {
             const breadcrumbs = fullDoc.querySelector('.woocommerce-breadcrumb, .breadcrumb, [class*="breadcrumb"]');
             if (breadcrumbs) {
@@ -399,23 +366,23 @@ export class FirecrawlService {
           }
         }
         
-        // Get image URL with improved handling
+        // Obtener URL de imagen con manejo mejorado
         let imageUrl = '';
         let additionalImages: string[] = [];
         
         if (imgEl) {
-          // Try different attributes for image source
+          // Probar diferentes atributos para la fuente de la imagen
           imageUrl = imgEl.getAttribute('src') || 
                      imgEl.getAttribute('data-src') || 
                      imgEl.getAttribute('data-lazy-src') || 
                      imgEl.getAttribute('data-original') ||
                      imgEl.getAttribute('srcset')?.split(' ')[0] || '';
                      
-          // Clean up the image URL
+          // Limpiar la URL de la imagen
           imageUrl = imageUrl.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|gif))/i, '');
         }
         
-        // Look for additional product images
+        // Buscar imágenes adicionales del producto
         const galleryItems = el.querySelectorAll('.gallery-image, [class*="gallery"], [data-thumb]');
         galleryItems.forEach(img => {
           const imgSrc = img.getAttribute('src') || 
@@ -427,13 +394,13 @@ export class FirecrawlService {
           }
         });
         
-        // Ensure image URL is absolute
+        // Asegurar que la URL de la imagen sea absoluta
         if (imageUrl && !imageUrl.startsWith('http')) {
           const origin = new URL(baseUrl).origin;
           imageUrl = `${origin}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
         }
         
-        // Fix additional image URLs
+        // Corregir URLs de imágenes adicionales
         additionalImages = additionalImages.map(imgUrl => {
           if (imgUrl && !imgUrl.startsWith('http')) {
             const origin = new URL(baseUrl).origin;
@@ -442,31 +409,31 @@ export class FirecrawlService {
           return imgUrl;
         });
         
-        // If still no image, use a better fallback
+        // Si aún no hay imagen, usar un valor por defecto
         if (!imageUrl) {
-          imageUrl = 'https://via.placeholder.com/300x300?text=Producto';
+          imageUrl = '';
         }
         
-        // Get product URL with improved handling
+        // Obtener URL del producto con manejo mejorado
         let productUrl = '';
         if (linkEl) {
           productUrl = linkEl.getAttribute('href') || '';
         }
         
-        // Ensure product URL is absolute
+        // Asegurar que la URL del producto sea absoluta
         if (productUrl && !productUrl.startsWith('http')) {
           const origin = new URL(baseUrl).origin;
           productUrl = `${origin}${productUrl.startsWith('/') ? '' : '/'}${productUrl}`;
         }
         
-        // Extract price with better handling
+        // Extraer precio con mejor manejo
         let price = 'Precio no disponible';
         let originalPrice = '';
         let discount = '';
         
         if (priceEl) {
           price = priceEl.textContent?.trim() || price;
-          // Clean up price format if needed
+          // Limpiar formato del precio si es necesario
           price = price.replace(/\s+/g, ' ');
         }
         
@@ -478,7 +445,7 @@ export class FirecrawlService {
           discount = saleEl.textContent?.trim() || 'En oferta';
         }
         
-        // Extract name with fallbacks
+        // Extraer nombre con alternativas
         let name = `Producto ${index + 1}`;
         if (nameEl && nameEl.textContent) {
           name = nameEl.textContent.trim();
@@ -486,22 +453,22 @@ export class FirecrawlService {
           name = linkEl.getAttribute('title') || name;
         }
         
-        // Extract SKU
+        // Extraer SKU
         const sku = skuEl?.textContent?.trim() || '';
         
-        // Extract stock status
+        // Extraer estado de stock
         const stockStatus = stockEl?.textContent?.trim() || '';
         
-        // Extract rating
+        // Extraer valoración
         const rating = ratingEl?.textContent?.trim() || '';
         
-        // Extract brand
+        // Extraer marca
         const brand = brandEl?.textContent?.trim() || '';
         
-        // Create unique ID
+        // Crear ID único
         const id = `product-${index + 1}-${Date.now().toString().slice(-6)}`;
         
-        // Extract description if available
+        // Extraer descripción si está disponible
         let description = `Producto de ${category} disponible en ${siteName}`;
         const descEl = el.querySelector('.product-excerpt, .description, .short-description, [class*="description"]');
         if (descEl) {
@@ -510,7 +477,7 @@ export class FirecrawlService {
           description = shortDescEl.textContent?.trim() || description;
         }
         
-        // Extract specifications if available
+        // Extraer especificaciones si están disponibles
         const specsList: Record<string, string> = {};
         const specsEl = el.querySelector('.specifications, .specs, .product-specs, [class*="specs"]');
         if (specsEl) {
@@ -553,7 +520,7 @@ export class FirecrawlService {
         };
       });
       
-      // Extract any global store information from the site
+      // Extraer cualquier información global de la tienda del sitio
       const storeInfo = {
         name: siteName,
         url: baseUrl,
@@ -562,7 +529,7 @@ export class FirecrawlService {
         description: fullDoc.querySelector('meta[name="description"]')?.getAttribute('content') || ''
       };
       
-      // Get site contact info if available
+      // Obtener información de contacto del sitio si está disponible
       const contactInfo: Record<string, string> = {};
       const contactElements = fullDoc.querySelectorAll('.contact-info, .contact, footer, [class*="contact"]');
       contactElements.forEach(el => {
@@ -575,14 +542,14 @@ export class FirecrawlService {
         if (addressMatch && addressMatch[1]) contactInfo.address = addressMatch[1].trim();
       });
       
-      // Extract all links for recursive crawling
+      // Extraer todos los enlaces para rastreo recursivo
       const links = this.extractAllLinks(fullDoc, baseUrl);
-      console.log(`Extracted ${links.length} links from ${baseUrl}`);
+      console.log(`Se extrajeron ${links.length} enlaces de ${baseUrl}`);
       
-      console.log(`Successfully extracted ${products.length} products with enhanced data fields`);
+      console.log(`Se extrajeron con éxito ${products.length} productos con campos de datos mejorados`);
       
       return {
-        success: true,
+        success: products.length > 0,
         data: {
           status: 'completed',
           completed: 1,
@@ -596,12 +563,13 @@ export class FirecrawlService {
         }
       };
     } catch (error) {
-      console.error('Error extracting enhanced product data:', error);
+      console.error('Error extrayendo datos de producto mejorados:', error);
       return {
-        success: true,
+        success: false,
+        error: "Error al extraer datos de productos",
         data: {
-          status: 'completed',
-          data: this.generateDemoProducts(baseUrl),
+          status: 'error',
+          data: [],
           links: []
         }
       };

@@ -18,14 +18,14 @@ const CategoryNavigation = ({
   const [commandOpen, setCommandOpen] = useState(false);
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
 
-  // Animation effect on mount
+  // Efecto de animación al montar
   useEffect(() => {
     setMounted(true);
   }, []);
 
   return (
     <div className="mb-6">
-      {/* Desktop category navigation */}
+      {/* Navegación de categorías en escritorio */}
       <div className={cn(
         "hidden md:flex flex-wrap items-center gap-2 py-4 transition-opacity duration-500",
         mounted ? "opacity-100" : "opacity-0"
@@ -60,7 +60,7 @@ const CategoryNavigation = ({
         ))}
       </div>
 
-      {/* Mobile category dropdown */}
+      {/* Desplegable de categorías para móvil */}
       <div className="md:hidden">
         <button
           onClick={() => setMobileCategoriesOpen(!mobileCategoriesOpen)}
@@ -120,7 +120,7 @@ const CategoryNavigation = ({
         )}
       </div>
       
-      {/* Command menu for quick category search (accessible with keyboard shortcut) */}
+      {/* Menú de comandos para búsqueda rápida de categorías (accesible con atajo de teclado) */}
       <div className="hidden">
         <Command>
           <CommandInput placeholder="Buscar categoría..." />

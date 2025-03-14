@@ -30,16 +30,16 @@ const Index = () => {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 12; // Increased from 9 to show more products
+  const productsPerPage = 12; // Aumentado de 9 a 12 para mostrar más productos
   
-  // Fetch data on component mount
+  // Obtener datos al montar el componente
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        console.log('Fetching new products...');
+        console.log('Obteniendo nuevos productos...');
         
-        // Try to load from localStorage first for instant display
+        // Intentar cargar desde localStorage primero para mostrar instantáneamente
         const savedData = localStorage.getItem('scraped_products');
         const savedTimestamp = localStorage.getItem('scraped_timestamp');
         
@@ -49,13 +49,13 @@ const Index = () => {
             setProducts(parsedData);
             setCategories(extractCategories(parsedData));
             setLastUpdated(savedTimestamp);
-            console.log(`Loaded ${parsedData.length} products from cache`);
+            console.log(`Cargados ${parsedData.length} productos desde caché`);
           } catch (e) {
-            console.error('Error loading saved data:', e);
+            console.error('Error al cargar datos guardados:', e);
           }
         }
         
-        // Always fetch fresh data
+        // Siempre obtener datos nuevos
         const result = await scrapeProducts('https://profesa.info/', {
           recursive: true,
           maxDepth: 2,
@@ -63,15 +63,15 @@ const Index = () => {
         });
         
         if (result.success) {
-          console.log(`Successfully fetched ${result.products.length} products`);
+          console.log(`Obtenidos con éxito ${result.products.length} productos`);
           
-          // Only update if we found products
+          // Solo actualizar si encontramos productos
           if (result.products.length > 0) {
             setProducts(result.products);
             setCategories(extractCategories(result.products));
             setLastUpdated(result.lastUpdated);
             
-            // Save to localStorage for persistence
+            // Guardar en localStorage para persistencia
             localStorage.setItem('scraped_products', JSON.stringify(result.products));
             localStorage.setItem('scraped_timestamp', result.lastUpdated);
             
@@ -80,15 +80,15 @@ const Index = () => {
               description: `Se han encontrado ${result.products.length} productos en ${result.products.length > 0 ? extractCategories(result.products).length : 0} categorías.`,
             });
           } else if (!savedData) {
-            // Only show error if we don't have cached data
+            // Solo mostrar error si no tenemos datos en caché
             toast({
               title: "No se encontraron productos",
-              description: "Se están mostrando productos de demostración.",
+              description: "Ocurrió un error al extraer datos. Intente más tarde.",
               variant: "destructive",
             });
           }
         } else {
-          console.error('Error fetching products:', result.error);
+          console.error('Error al obtener productos:', result.error);
           if (!savedData) {
             toast({
               title: "Error al cargar productos",
@@ -98,7 +98,7 @@ const Index = () => {
           }
         }
       } catch (error) {
-        console.error('Error in data fetching:', error);
+        console.error('Error en la obtención de datos:', error);
         if (!localStorage.getItem('scraped_products')) {
           toast({
             title: "Error al cargar productos",
@@ -114,7 +114,7 @@ const Index = () => {
     fetchData();
   }, [toast]);
   
-  // Filter products by category and search query
+  // Filtrar productos por categoría y consulta de búsqueda
   const filteredProducts = products
     .filter(product => !activeCategory || product.category === activeCategory)
     .filter(product => {
@@ -129,7 +129,7 @@ const Index = () => {
       );
     });
   
-  // Pagination logic
+  // Lógica de paginación
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
   const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
@@ -140,7 +140,7 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
-  // Generate page numbers for pagination
+  // Generar números de página para paginación
   const pageNumbers = [];
   const maxPagesToShow = 5;
   
@@ -162,14 +162,14 @@ const Index = () => {
     }
   }
   
-  // Animation on mount
+  // Animación al montar
   useEffect(() => {
     setMounted(true);
   }, []);
   
   return (
     <div className="min-h-screen pb-12">
-      {/* Header section */}
+      {/* Sección de encabezado */}
       <header 
         className={cn(
           "relative flex flex-col items-center justify-center text-center py-12 px-6",
@@ -197,9 +197,9 @@ const Index = () => {
         </div>
       </header>
       
-      {/* Main content */}
+      {/* Contenido principal */}
       <main className="container max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in">
-        {/* Search and filter section */}
+        {/* Sección de búsqueda y filtros */}
         <div 
           className={cn(
             "mb-6 transition-all duration-700 transform",
@@ -214,7 +214,7 @@ const Index = () => {
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setCurrentPage(1); // Reset to first page on search
+                  setCurrentPage(1); // Volver a la primera página al buscar
                 }}
                 className="pl-10"
               />
@@ -225,7 +225,7 @@ const Index = () => {
           </div>
         </div>
         
-        {/* Products section */}
+        {/* Sección de productos */}
         <section 
           className={cn(
             "animate-slide-in",
@@ -248,17 +248,17 @@ const Index = () => {
             )}
           </div>
           
-          {/* Category navigation */}
+          {/* Navegación de categorías */}
           <CategoryNavigation 
             categories={categories}
             activeCategory={activeCategory}
             onSelectCategory={setActiveCategory}
           />
           
-          {/* Product display */}
+          {/* Mostrar productos */}
           <ProductDisplay products={currentProducts} isLoading={isLoading} />
           
-          {/* Pagination */}
+          {/* Paginación */}
           {!isLoading && filteredProducts.length > 0 && (
             <Pagination className="my-8">
               <PaginationContent>
@@ -295,7 +295,7 @@ const Index = () => {
             </Pagination>
           )}
           
-          {/* No results message */}
+          {/* Mensaje de no resultados */}
           {!isLoading && filteredProducts.length === 0 && searchQuery && (
             <div className="text-center py-12">
               <h3 className="text-lg font-medium mb-2">No se encontraron productos</h3>
