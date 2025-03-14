@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, ExternalLink, ShoppingCart, Tag, Package, Info } from 'lucide-react';
+import { ArrowLeft, Star, ExternalLink, ShoppingCart, Tag, Package, Info, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
@@ -8,15 +9,6 @@ import { cn } from '@/lib/utils';
 import { type Product } from '@/utils/scraper';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +16,7 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -72,13 +65,39 @@ const ProductDetail = () => {
     }
   }, [id, toast]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const target = e.target as HTMLImageElement;
-    target.src = 'https://via.placeholder.com/400x400?text=Producto';
+  const isPlaceholderImage = (url: string): boolean => {
+    // Check for common placeholder patterns
+    return !url || 
+      url.includes('data:image/svg') || 
+      url.includes('placeholder') || 
+      url.includes('no-image') || 
+      url.includes('noimage') ||
+      url.includes('no_image') ||
+      url.includes('default-product') ||
+      url.includes('dummy-image');
+  };
+
+  const handleImageError = (imageUrl: string) => {
+    console.log(`Error loading image: ${imageUrl}`);
+    setImageErrors(prev => ({
+      ...prev,
+      [imageUrl]: true
+    }));
+    
+    // If the active image fails, try to set the first working image
+    if (activeImage === imageUrl && product) {
+      const validImages = [product.imageUrl, ...(product.additionalImages || [])].filter(
+        img => !imageErrors[img] && !isPlaceholderImage(img)
+      );
+      
+      if (validImages.length > 0) {
+        setActiveImage(validImages[0]);
+      }
+    }
   };
 
   const allImages = product ? 
-    [product.imageUrl, ...(product.additionalImages || [])] : 
+    [product.imageUrl, ...(product.additionalImages || [])].filter(img => img && img.trim() !== '') : 
     [];
   
   if (loading) {
@@ -142,12 +161,24 @@ const ProductDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div className="relative aspect-square bg-muted/20 rounded-lg overflow-hidden glass-card">
-              <img 
-                src={activeImage || product.imageUrl} 
-                alt={product.name} 
-                className="w-full h-full object-contain p-4" 
-                onError={handleImageError}
-              />
+              {imageErrors[activeImage || ''] || isPlaceholderImage(activeImage || '') ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30 p-8">
+                  <ImageOff className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                  <span className="text-sm text-muted-foreground text-center font-medium">
+                    Imagen no disponible
+                  </span>
+                  <span className="text-xs text-muted-foreground text-center mt-2 max-w-md">
+                    {product.name}
+                  </span>
+                </div>
+              ) : (
+                <img 
+                  src={activeImage || product.imageUrl} 
+                  alt={product.name} 
+                  className="w-full h-full object-contain p-4" 
+                  onError={() => handleImageError(activeImage || '')}
+                />
+              )}
               
               {product.discount && (
                 <div className="absolute top-2 left-2 z-10">
@@ -160,21 +191,28 @@ const ProductDetail = () => {
             
             {allImages.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {allImages.map((img, idx) => (
+                {allImages.filter(img => img && img.trim() !== '').map((img, idx) => (
                   <button
                     key={idx}
                     className={cn(
                       "w-16 h-16 border rounded-md overflow-hidden flex-shrink-0",
-                      activeImage === img ? "ring-2 ring-primary" : "opacity-70 hover:opacity-100"
+                      activeImage === img ? "ring-2 ring-primary" : "opacity-70 hover:opacity-100",
+                      (imageErrors[img] || isPlaceholderImage(img)) ? "bg-muted/50" : ""
                     )}
                     onClick={() => setActiveImage(img)}
                   >
-                    <img 
-                      src={img} 
-                      alt={`${product.name} - imagen ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={handleImageError}
-                    />
+                    {imageErrors[img] || isPlaceholderImage(img) ? (
+                      <div className="w-full h-full flex items-center justify-center bg-muted/30">
+                        <ImageOff className="h-4 w-4 text-muted-foreground opacity-70" />
+                      </div>
+                    ) : (
+                      <img 
+                        src={img} 
+                        alt={`${product.name} - imagen ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={() => handleImageError(img)}
+                      />
+                    )}
                   </button>
                 ))}
               </div>

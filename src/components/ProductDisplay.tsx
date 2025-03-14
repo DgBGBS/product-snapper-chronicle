@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Star, ShoppingCart, Eye, Heart } from 'lucide-react';
+import { Star, ShoppingCart, Eye, Heart, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ProductDisplayProps {
@@ -27,7 +27,20 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
     }
   }, []);
 
+  const isPlaceholderImage = (url: string): boolean => {
+    // Check for common placeholder patterns
+    return !url || 
+      url.includes('data:image/svg') || 
+      url.includes('placeholder') || 
+      url.includes('no-image') || 
+      url.includes('noimage') ||
+      url.includes('no_image') ||
+      url.includes('default-product') ||
+      url.includes('dummy-image');
+  };
+
   const handleImageError = (productId: string) => {
+    console.log(`Image error for product ${productId}`);
     setImageErrors(prev => ({
       ...prev,
       [productId]: true
@@ -41,6 +54,12 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
     };
     setFavorites(newFavorites);
     localStorage.setItem('favorites', JSON.stringify(newFavorites));
+  };
+
+  // Helper function to get a fallback image
+  const getFallbackImage = (product: Product): string => {
+    // Use a unique seed based on the product ID to get a consistent random image
+    return `https://source.unsplash.com/300x300/?product,${product.category.replace(/\s+/g, '-')}`;
   };
 
   if (isLoading) {
@@ -120,9 +139,12 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
             </Button>
             
             <Link to={`/product/${product.id}`} className="block h-full w-full">
-              {imageErrors[product.id] ? (
-                <div className="w-full h-full flex items-center justify-center bg-muted">
-                  <span className="text-muted-foreground">Imagen no disponible</span>
+              {imageErrors[product.id] || isPlaceholderImage(product.imageUrl) ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/50 p-4">
+                  <ImageOff className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
+                  <span className="text-xs text-muted-foreground text-center">
+                    {product.name.slice(0, 50)}{product.name.length > 50 ? '...' : ''}
+                  </span>
                 </div>
               ) : (
                 <img 
