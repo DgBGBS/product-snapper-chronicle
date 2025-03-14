@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, ExternalLink, ShoppingCart, Tag, Package, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -26,6 +25,7 @@ const ProductDetail = () => {
   const [mounted, setMounted] = useState(false);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   useEffect(() => {
     setMounted(true);
@@ -128,11 +128,15 @@ const ProductDetail = () => {
       )}
     >
       <div className="container max-w-6xl mx-auto py-12 px-4">
-        <Button variant="ghost" asChild className="mb-6">
-          <Link to="/" className="flex items-center gap-2">
+        <Button 
+          variant="ghost" 
+          className="mb-6"
+          onClick={() => navigate(-1)}
+        >
+          <div className="flex items-center gap-2">
             <ArrowLeft size={18} />
             Volver a la lista de productos
-          </Link>
+          </div>
         </Button>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

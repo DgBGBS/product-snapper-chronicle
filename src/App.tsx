@@ -10,7 +10,16 @@ import WebScraper from "./pages/WebScraper";
 import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Create a new QueryClient instance that doesn't requery on focus or reconnect
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

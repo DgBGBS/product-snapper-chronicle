@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +41,6 @@ const AdminPanel = () => {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    // Cargar datos del localStorage
     const savedProducts = localStorage.getItem("scraped_products");
     const savedTimestamp = localStorage.getItem("scraped_timestamp");
     const savedUrl = localStorage.getItem("scraped_url");
@@ -51,7 +49,6 @@ const AdminPanel = () => {
       const parsedProducts = JSON.parse(savedProducts) as Product[];
       setProducts(parsedProducts);
       
-      // Extraer categorías de los productos
       const extractedCategories = extractCategories(parsedProducts);
       setCategories(extractedCategories);
     }
@@ -65,11 +62,9 @@ const AdminPanel = () => {
     }
   }, []);
 
-  // Filtrar productos cuando cambien los criterios
   useEffect(() => {
     let filtered = [...products];
     
-    // Filtrar por búsqueda
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -81,17 +76,14 @@ const AdminPanel = () => {
       );
     }
     
-    // Filtrar por categoría
     if (selectedCategory !== "todas") {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
     
-    // Ordenar productos: primero los que tienen imagen real, después los que tienen "No image" o similar, y finalmente los que no tienen
     filtered.sort((a, b) => {
       const aHasImage = Boolean(a.imageUrl);
       const bHasImage = Boolean(b.imageUrl);
       
-      // Verificar si la imagen contiene "No image" o texto similar
       const aHasNoImageText = a.imageUrl?.toLowerCase().includes('no image') || 
                              a.imageUrl?.toLowerCase().includes('noimage') ||
                              a.imageUrl?.toLowerCase().includes('placeholder');
@@ -100,11 +92,9 @@ const AdminPanel = () => {
                              b.imageUrl?.toLowerCase().includes('noimage') ||
                              b.imageUrl?.toLowerCase().includes('placeholder');
       
-      // Productos con imagen real primero
       if (aHasImage && !aHasNoImageText && (!bHasImage || bHasNoImageText)) return -1;
       if (bHasImage && !bHasNoImageText && (!aHasImage || aHasNoImageText)) return 1;
       
-      // Productos con "No image" después
       if (aHasImage && aHasNoImageText && !bHasImage) return -1;
       if (bHasImage && bHasNoImageText && !aHasImage) return 1;
       
@@ -112,32 +102,27 @@ const AdminPanel = () => {
     });
     
     setFilteredProducts(filtered);
-    setCurrentPage(1); // Resetear a la primera página
+    setCurrentPage(1);
   }, [searchQuery, selectedCategory, products]);
 
-  // Calcular productos de la página actual
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
   const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
 
-  // Manejar cambio de página
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
-  // Exportar datos a CSV
+
   const exportToCsv = () => {
     if (products.length === 0) return;
     
-    // Definir encabezados CSV
     const headers = [
       "ID", "Nombre", "Precio", "Categoría", "URL", "Descripción",
       "Precio Original", "Descuento", "SKU", "Estado stock", "Marca"
     ];
     
-    // Preparar filas
     const rows = products.map(product => [
       product.id,
       product.name,
@@ -152,13 +137,11 @@ const AdminPanel = () => {
       product.brand || ""
     ]);
     
-    // Unir encabezados y filas
     const csvContent = [
       headers.join(","),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
     
-    // Crear archivo para descargar
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -168,8 +151,7 @@ const AdminPanel = () => {
     link.click();
     document.body.removeChild(link);
   };
-  
-  // Limpiar todos los datos
+
   const clearAllData = () => {
     if (confirm("¿Estás seguro de que quieres eliminar todos los datos recopilados?")) {
       localStorage.removeItem("scraped_products");
