@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Star, ShoppingCart, Eye } from 'lucide-react';
+import { Star, ShoppingCart, Eye, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ProductDisplayProps {
@@ -16,9 +16,15 @@ interface ProductDisplayProps {
 const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) => {
   const [mounted, setMounted] = useState(false);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setMounted(true);
+    // Load favorites from localStorage
+    const savedFavorites = localStorage.getItem('favorites');
+    if (savedFavorites) {
+      setFavorites(JSON.parse(savedFavorites));
+    }
   }, []);
 
   const handleImageError = (productId: string) => {
@@ -26,6 +32,15 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
       ...prev,
       [productId]: true
     }));
+  };
+
+  const toggleFavorite = (productId: string) => {
+    const newFavorites = {
+      ...favorites,
+      [productId]: !favorites[productId]
+    };
+    setFavorites(newFavorites);
+    localStorage.setItem('favorites', JSON.stringify(newFavorites));
   };
 
   if (isLoading) {
@@ -58,18 +73,19 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
       {products.map((product, index) => (
         <div 
           key={product.id}
           className={cn(
-            "glass-card card-hover rounded-lg overflow-hidden",
+            "glass-card rounded-lg overflow-hidden",
             "transform transition-all duration-500 ease-out",
             "border border-border/40 hover:border-border/80 shadow-sm hover:shadow-md",
+            "hover:translate-y-[-4px]",
             mounted ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
           )}
           style={{ 
-            transitionDelay: `${index * 100}ms`,
+            transitionDelay: `${Math.min(index * 50, 500)}ms`,
           }}
         >
           <div className="relative aspect-video overflow-hidden bg-muted/20">
@@ -80,6 +96,28 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
                 </Badge>
               </div>
             )}
+            
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className={cn(
+                "absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm",
+                "hover:bg-background/90",
+                favorites[product.id] ? "text-red-500 hover:text-red-600" : "text-muted-foreground"
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFavorite(product.id);
+              }}
+            >
+              <Heart 
+                className={cn(
+                  "h-4 w-4 transition-all",
+                  favorites[product.id] ? "fill-red-500" : "fill-none"
+                )} 
+              />
+            </Button>
             
             <Link to={`/product/${product.id}`} className="block h-full w-full">
               {imageErrors[product.id] ? (
@@ -104,7 +142,11 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
                 <span className="inline-block px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-md mb-2">
                   {product.category}
                 </span>
-                <h3 className="font-medium line-clamp-2">{product.name}</h3>
+                <Link to={`/product/${product.id}`}>
+                  <h3 className="font-medium line-clamp-2 hover:text-primary transition-colors">
+                    {product.name}
+                  </h3>
+                </Link>
                 {product.brand && (
                   <span className="text-xs text-muted-foreground mt-1">
                     {product.brand}
@@ -158,22 +200,30 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
               </div>
             )}
             
-            <div className="mt-4 flex justify-between items-center">
-              <Button asChild variant="outline" size="sm" className="px-2 py-1 h-auto text-xs">
+            <div className="mt-4 flex justify-between items-center gap-2">
+              <Button asChild variant="outline" size="sm" className="w-full h-auto py-1.5">
                 <Link 
                   to={`/product/${product.id}`}
-                  className="flex items-center gap-1"
+                  className="flex items-center justify-center gap-1"
                 >
-                  <Eye size={12} />
+                  <Eye size={14} />
                   Ver detalles
                 </Link>
               </Button>
               
-              {product.additionalImages && product.additionalImages.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  +{product.additionalImages.length} imágenes
-                </span>
-              )}
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="w-full h-auto py-1.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Aquí se podría implementar funcionalidad de carrito
+                  alert(`Producto "${product.name}" añadido al carrito`);
+                }}
+              >
+                <ShoppingCart size={14} />
+                <span className="ml-1">Comprar</span>
+              </Button>
             </div>
           </div>
         </div>

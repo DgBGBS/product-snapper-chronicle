@@ -4,12 +4,21 @@ import { type Product } from '@/utils/scraper';
 import { extractCategories } from '@/utils/scraper';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { cn } from '@/lib/utils';
-import { Store, Database, RefreshCw } from 'lucide-react';
+import { Store, Database, RefreshCw, Search } from 'lucide-react';
 
 import CategoryNavigation from '@/components/CategoryNavigation';
 import ProductDisplay from '@/components/ProductDisplay';
 import DataExtractor from '@/components/DataExtractor';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 const Index = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -18,6 +27,9 @@ const Index = () => {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 9;
   
   // Handle data fetched from extractor
   const handleDataFetched = (data: Product[], updated: string) => {
@@ -26,12 +38,56 @@ const Index = () => {
     setCategories(extractCategories(data));
     setLastUpdated(updated);
     setIsLoading(false);
+    setCurrentPage(1); // Reset to first page on new data
   };
   
-  // Filter products by category
-  const filteredProducts = activeCategory
-    ? products.filter(product => product.category === activeCategory)
-    : products;
+  // Filter products by category and search query
+  const filteredProducts = products
+    .filter(product => !activeCategory || product.category === activeCategory)
+    .filter(product => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        product.name?.toLowerCase().includes(query) ||
+        product.description?.toLowerCase().includes(query) ||
+        product.brand?.toLowerCase().includes(query) ||
+        product.category?.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query)
+      );
+    });
+  
+  // Pagination logic
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  
+  // Generate page numbers for pagination
+  const pageNumbers = [];
+  const maxPagesToShow = 5;
+  
+  if (totalPages <= maxPagesToShow) {
+    for (let i = 1; i <= totalPages; i++) {
+      pageNumbers.push(i);
+    }
+  } else {
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = startPage + maxPagesToShow - 1;
+    
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+  }
   
   // Animation on mount
   useEffect(() => {
@@ -95,6 +151,38 @@ const Index = () => {
           </CardContent>
         </Card>
         
+        {/* Search and filter section */}
+        <div 
+          className={cn(
+            "mb-6 transition-all duration-700 transform",
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          )}
+        >
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="w-full md:w-1/2 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
+              <Input
+                placeholder="Buscar productos por nombre, descripción, marca..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1); // Reset to first page on search
+                }}
+                className="pl-10"
+              />
+            </div>
+            <div className="text-sm text-muted-foreground flex items-center">
+              <span>Mostrando {filteredProducts.length} de {products.length} productos</span>
+              {lastUpdated && (
+                <span className="ml-4 flex items-center">
+                  <RefreshCw size={14} className="mr-1" />
+                  <span>Actualizado: {new Date(lastUpdated).toLocaleString()}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        
         {/* Products section */}
         <section 
           className={cn(
@@ -108,17 +196,6 @@ const Index = () => {
               <Store size={24} className="text-primary" />
               <h2 className="text-2xl font-bold">Productos</h2>
             </div>
-            <div className="flex items-center gap-2">
-              {lastUpdated && (
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <RefreshCw size={14} className="mr-1" />
-                  <span>Última actualización: {new Date(lastUpdated).toLocaleString()}</span>
-                </div>
-              )}
-              <span className="text-sm text-muted-foreground ml-2">
-                Mostrando {filteredProducts.length} de {products.length} productos
-              </span>
-            </div>
           </div>
           
           {/* Category navigation */}
@@ -129,7 +206,54 @@ const Index = () => {
           />
           
           {/* Product display */}
-          <ProductDisplay products={filteredProducts} isLoading={isLoading} />
+          <ProductDisplay products={currentProducts} isLoading={isLoading} />
+          
+          {/* Pagination */}
+          {!isLoading && filteredProducts.length > 0 && (
+            <Pagination className="my-8">
+              <PaginationContent>
+                {currentPage > 1 && (
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                )}
+                
+                {pageNumbers.map(number => (
+                  <PaginationItem key={number}>
+                    <PaginationLink 
+                      isActive={number === currentPage}
+                      onClick={() => handlePageChange(number)}
+                      className="cursor-pointer"
+                    >
+                      {number}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                {currentPage < totalPages && (
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                )}
+              </PaginationContent>
+            </Pagination>
+          )}
+          
+          {/* No results message */}
+          {!isLoading && filteredProducts.length === 0 && searchQuery && (
+            <div className="text-center py-12">
+              <h3 className="text-lg font-medium mb-2">No se encontraron productos</h3>
+              <p className="text-muted-foreground">
+                No hay resultados para "{searchQuery}". Por favor, intenta con otra búsqueda.
+              </p>
+            </div>
+          )}
         </section>
       </main>
     </div>
