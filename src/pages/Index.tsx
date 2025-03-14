@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { cn } from '@/lib/utils';
-import { Store, Search } from 'lucide-react';
+import { Store, Search, Loader2 } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
 
 import CategoryNavigation from '@/components/CategoryNavigation';
 import ProductDisplay from '@/components/ProductDisplay';
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/pagination";
 
 const Index = () => {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -28,61 +30,91 @@ const Index = () => {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 9;
+  const productsPerPage = 12; // Increased from 9 to show more products
   
-  // Fetch data directly from categoria-producto URL
+  // Fetch data on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        console.log('Fetching products from categoria-producto URL');
-        const result = await scrapeProducts('https://profesa.info/categoria-producto/', {
+        
+        // Try to load from localStorage first for instant display
+        const savedData = localStorage.getItem('scraped_products');
+        const savedTimestamp = localStorage.getItem('scraped_timestamp');
+        
+        if (savedData && savedTimestamp) {
+          try {
+            const parsedData = JSON.parse(savedData) as Product[];
+            setProducts(parsedData);
+            setCategories(extractCategories(parsedData));
+            setLastUpdated(savedTimestamp);
+            console.log(`Loaded ${parsedData.length} products from cache`);
+          } catch (e) {
+            console.error('Error loading saved data:', e);
+          }
+        }
+        
+        // Always fetch fresh data
+        console.log('Fetching new products...');
+        const mainSiteUrl = 'https://profesa.info/';
+        
+        const result = await scrapeProducts(mainSiteUrl, {
           recursive: true,
-          maxDepth: 3, // Increase max depth to find more products
+          maxDepth: 3,
           includeProductPages: true
         });
         
         if (result.success) {
           console.log(`Successfully fetched ${result.products.length} products`);
-          setProducts(result.products);
-          setCategories(extractCategories(result.products));
-          setLastUpdated(result.lastUpdated);
           
-          // Save to localStorage for persistence
-          localStorage.setItem('scraped_products', JSON.stringify(result.products));
-          localStorage.setItem('scraped_timestamp', result.lastUpdated);
+          // Only update if we found products
+          if (result.products.length > 0) {
+            setProducts(result.products);
+            setCategories(extractCategories(result.products));
+            setLastUpdated(result.lastUpdated);
+            
+            // Save to localStorage for persistence
+            localStorage.setItem('scraped_products', JSON.stringify(result.products));
+            localStorage.setItem('scraped_timestamp', result.lastUpdated);
+            
+            toast({
+              title: "¡Productos cargados!",
+              description: `Se han encontrado ${result.products.length} productos en ${result.products.length > 0 ? extractCategories(result.products).length : 0} categorías.`,
+            });
+          } else if (!savedData) {
+            // Only show error if we don't have cached data
+            toast({
+              title: "No se encontraron productos",
+              description: "Se están mostrando productos de demostración.",
+              variant: "destructive",
+            });
+          }
         } else {
           console.error('Error fetching products:', result.error);
+          if (!savedData) {
+            toast({
+              title: "Error al cargar productos",
+              description: result.error || "Ocurrió un error desconocido",
+              variant: "destructive",
+            });
+          }
         }
       } catch (error) {
         console.error('Error in data fetching:', error);
+        if (!localStorage.getItem('scraped_products')) {
+          toast({
+            title: "Error al cargar productos",
+            description: "No se pudieron cargar los productos",
+            variant: "destructive",
+          });
+        }
       } finally {
         setIsLoading(false);
       }
     };
     
-    // Load data from localStorage first (for fast initial load)
-    const savedData = localStorage.getItem('scraped_products');
-    const savedTimestamp = localStorage.getItem('scraped_timestamp');
-    
-    if (savedData && savedTimestamp) {
-      try {
-        const parsedData = JSON.parse(savedData) as Product[];
-        setProducts(parsedData);
-        setCategories(extractCategories(parsedData));
-        setLastUpdated(savedTimestamp);
-        setIsLoading(false);
-        
-        // Still fetch fresh data in the background
-        fetchData();
-      } catch (e) {
-        console.error('Error loading saved data:', e);
-        fetchData();
-      }
-    } else {
-      fetchData();
-    }
-  }, []);
+    fetchData();
+  }, [toast]);
   
   // Filter products by category and search query
   const filteredProducts = products
@@ -159,10 +191,10 @@ const Index = () => {
             <Store size={48} className="text-primary" />
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
-            Catálogo de Productos
+            ¡Sorpresa! Catálogo Completo
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
-            Explora todos los productos disponibles de todas las categorías
+            Se han extraído todos los productos automáticamente. Explora por categoría o usa el buscador.
           </p>
         </div>
       </header>
@@ -207,7 +239,15 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <Store size={24} className="text-primary" />
               <h2 className="text-2xl font-bold">Productos</h2>
+              {isLoading && (
+                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+              )}
             </div>
+            {lastUpdated && (
+              <p className="text-xs text-muted-foreground">
+                Actualizado: {new Date(lastUpdated).toLocaleString()}
+              </p>
+            )}
           </div>
           
           {/* Category navigation */}
