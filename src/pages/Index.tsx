@@ -90,7 +90,7 @@ const Index = () => {
           <CardContent className="p-6">
             <DataExtractor 
               onDataFetched={handleDataFetched} 
-              autoFetchInterval={30} 
+              autoFetchInterval={1} 
             />
           </CardContent>
         </Card>

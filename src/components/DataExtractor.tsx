@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { scrapeProducts, type Product, type ScrapeResult } from '@/utils/scraper';
 import { saveToGoogleSheets, setupScheduledTask } from '@/utils/storage';
 
 interface DataExtractorProps {
   onDataFetched: (data: Product[], lastUpdated: string) => void;
-  autoFetchInterval?: number; // in minutes
+  autoFetchInterval?: number; // in seconds
 }
 
 const DataExtractor = ({ 
@@ -21,7 +24,10 @@ const DataExtractor = ({
   const [progress, setProgress] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [targetUrl, setTargetUrl] = useState<string>('https://profesa.info/tienda');
+  const [updateInterval, setUpdateInterval] = useState<string>(autoFetchInterval.toString());
+  const [isRealtime, setIsRealtime] = useState<boolean>(false);
   const fetchingRef = useRef(false);
+  const intervalRef = useRef<number | null>(null);
   
   // Cargar datos de localStorage al inicio
   useEffect(() => {
@@ -137,6 +143,73 @@ const DataExtractor = ({
     }
   };
   
+  // Handle interval change
+  const handleIntervalChange = (value: string) => {
+    setUpdateInterval(value);
+    if (isRealtime) {
+      // Restart interval with new value
+      setupRealtimeUpdates(parseInt(value, 10));
+    }
+  };
+  
+  // Setup real-time updates
+  const setupRealtimeUpdates = useCallback((seconds: number) => {
+    // Clear existing interval if any
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      console.log("Cleared existing update interval");
+    }
+    
+    // Set up new interval
+    if (isRealtime) {
+      console.log(`Setting up real-time updates every ${seconds} seconds`);
+      intervalRef.current = window.setInterval(() => {
+        console.log(`Running real-time update (interval: ${seconds} seconds)`);
+        fetchData();
+      }, seconds * 1000);
+    }
+    
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        console.log("Cleared real-time update interval");
+      }
+    };
+  }, [fetchData, isRealtime]);
+  
+  // Handle real-time toggle
+  const handleRealtimeToggle = (checked: boolean) => {
+    setIsRealtime(checked);
+    if (checked) {
+      toast({
+        title: "Modo en tiempo real activado",
+        description: `Los datos se actualizarán cada ${updateInterval} segundos`,
+      });
+      setupRealtimeUpdates(parseInt(updateInterval, 10));
+    } else {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        toast({
+          title: "Modo en tiempo real desactivado",
+          description: "Los datos se actualizarán solo manualmente",
+        });
+      }
+    }
+  };
+  
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        console.log("Cleanup: cleared real-time update interval");
+      }
+    };
+  }, []);
+  
   // First load data fetch
   useEffect(() => {
     const initialFetch = async () => {
@@ -147,19 +220,22 @@ const DataExtractor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Setup scheduled task
+  // Setup scheduled task only if not in real-time mode
   useEffect(() => {
-    console.log(`Setting up scheduled task to run every ${autoFetchInterval} minutes`);
-    const cleanup = setupScheduledTask(
-      () => fetchData(),
-      autoFetchInterval,
-      true
-    );
-    
-    return () => {
-      cleanup();
-    };
-  }, [fetchData, autoFetchInterval]);
+    if (!isRealtime) {
+      console.log(`Setting up scheduled task to run every ${autoFetchInterval} minutes`);
+      const cleanup = setupScheduledTask(
+        () => fetchData(),
+        autoFetchInterval,
+        true
+      );
+      
+      return () => {
+        cleanup();
+      };
+    }
+    return undefined;
+  }, [fetchData, autoFetchInterval, isRealtime]);
   
   return (
     <div className="space-y-4">
@@ -167,7 +243,7 @@ const DataExtractor = ({
         <div>
           <h2 className="text-lg font-medium">Extractor de Datos</h2>
           <p className="text-sm text-muted-foreground">
-            Extrae datos de productos desde sitios web de e-commerce cada {autoFetchInterval} minutos
+            Extrae datos de productos desde sitios web de e-commerce
           </p>
         </div>
       </div>
@@ -190,6 +266,39 @@ const DataExtractor = ({
           {isLoading ? "Extrayendo..." : "Extraer Ahora"}
         </Button>
       </form>
+      
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="real-time-mode"
+            checked={isRealtime}
+            onCheckedChange={handleRealtimeToggle}
+          />
+          <Label htmlFor="real-time-mode">Actualización en tiempo real</Label>
+        </div>
+        
+        {isRealtime && (
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="update-interval">Frecuencia:</Label>
+            <Select
+              value={updateInterval}
+              onValueChange={handleIntervalChange}
+              disabled={!isRealtime}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Seleccionar intervalo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Cada 5 segundos</SelectItem>
+                <SelectItem value="10">Cada 10 segundos</SelectItem>
+                <SelectItem value="30">Cada 30 segundos</SelectItem>
+                <SelectItem value="60">Cada 1 minuto</SelectItem>
+                <SelectItem value="300">Cada 5 minutos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
       
       {(isLoading || progress > 0) && (
         <Progress 
