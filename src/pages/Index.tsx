@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { type Product } from '@/utils/scraper';
 import { extractCategories } from '@/utils/scraper';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from '@/lib/utils';
+import { Store, Database, RefreshCw } from 'lucide-react';
 
 import CategoryNavigation from '@/components/CategoryNavigation';
 import ProductDisplay from '@/components/ProductDisplay';
@@ -55,6 +56,9 @@ const Index = () => {
           )}
         />
         <div className="relative w-full max-w-4xl mx-auto space-y-4">
+          <div className="mx-auto flex justify-center mb-4">
+            <Store size={48} className="text-primary" />
+          </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
             Extractor y Organizador de Productos
           </h1>
@@ -71,12 +75,16 @@ const Index = () => {
         <Card 
           className={cn(
             "mb-8 overflow-hidden glass-card shadow-soft",
-            "transition-all duration-700 transform",
+            "transition-all duration-700 transform border border-border/40",
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           )}
         >
-          <CardHeader className="p-6">
-            <CardTitle>Panel de Control</CardTitle>
+          <CardHeader className="p-6 flex flex-row items-center space-y-0 gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Panel de Control</CardTitle>
+              <CardDescription>Extracción y gestión de datos de productos</CardDescription>
+            </div>
           </CardHeader>
           <Separator />
           <CardContent className="p-6">
@@ -96,12 +104,21 @@ const Index = () => {
           )}
         >
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Productos</h2>
-            {lastUpdated && (
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Store size={24} className="text-primary" />
+              <h2 className="text-2xl font-bold">Productos</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {lastUpdated && (
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <RefreshCw size={14} className="mr-1" />
+                  <span>Última actualización: {new Date(lastUpdated).toLocaleString()}</span>
+                </div>
+              )}
+              <span className="text-sm text-muted-foreground ml-2">
                 Mostrando {filteredProducts.length} de {products.length} productos
-              </p>
-            )}
+              </span>
+            </div>
           </div>
           
           {/* Category navigation */}

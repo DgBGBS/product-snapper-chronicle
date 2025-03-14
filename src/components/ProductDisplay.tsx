@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Star, ShoppingCart, Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ProductDisplayProps {
   products: Product[];
@@ -63,6 +65,7 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
           className={cn(
             "glass-card card-hover rounded-lg overflow-hidden",
             "transform transition-all duration-500 ease-out",
+            "border border-border/40 hover:border-border/80 shadow-sm hover:shadow-md",
             mounted ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
           )}
           style={{ 
@@ -78,7 +81,7 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
               </div>
             )}
             
-            <Link to={`/product/${product.id}`}>
+            <Link to={`/product/${product.id}`} className="block h-full w-full">
               {imageErrors[product.id] ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
                   <span className="text-muted-foreground">Imagen no disponible</span>
@@ -140,18 +143,31 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
             
             {product.rating && (
               <div className="flex items-center mt-2">
-                <span className="text-xs text-amber-500">★★★★★</span>
+                <div className="flex text-amber-500">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star 
+                      key={i} 
+                      size={12} 
+                      className={cn(
+                        i < Math.floor(parseFloat(product.rating || '0')) ? "fill-amber-500" : "fill-none"
+                      )}
+                    />
+                  ))}
+                </div>
                 <span className="text-xs text-muted-foreground ml-1">{product.rating}</span>
               </div>
             )}
             
             <div className="mt-4 flex justify-between items-center">
-              <Link 
-                to={`/product/${product.id}`}
-                className="text-sm text-primary hover:underline transition-colors duration-200"
-              >
-                Ver detalles
-              </Link>
+              <Button asChild variant="outline" size="sm" className="px-2 py-1 h-auto text-xs">
+                <Link 
+                  to={`/product/${product.id}`}
+                  className="flex items-center gap-1"
+                >
+                  <Eye size={12} />
+                  Ver detalles
+                </Link>
+              </Button>
               
               {product.additionalImages && product.additionalImages.length > 0 && (
                 <span className="text-xs text-muted-foreground">
