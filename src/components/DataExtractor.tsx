@@ -50,6 +50,10 @@ const DataExtractor = ({
         setProgress(80);
         console.log(`Successfully scraped ${result.products.length} products`);
         
+        // Save products to localStorage for the detail page to access
+        localStorage.setItem('scraped_products', JSON.stringify(result.products));
+        console.log('Products saved to localStorage for detail page access');
+        
         // Save to Google Sheets
         const storageResult = await saveToGoogleSheets(result.products);
         setProgress(100);

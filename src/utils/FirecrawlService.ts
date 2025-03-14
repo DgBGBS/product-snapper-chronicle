@@ -60,7 +60,7 @@ export class FirecrawlService {
         // Extract product details using selectors specific to profesa.info
         const nameEl = el.querySelector('.woocommerce-loop-product__title');
         const priceEl = el.querySelector('.price');
-        const imgEl = el.querySelector('img');
+        const imgEl = el.querySelector('img.attachment-woocommerce_thumbnail, img.wp-post-image');
         const linkEl = el.querySelector('a.woocommerce-LoopProduct-link');
         const categoryEl = el.closest('.product-category-name');
         
@@ -81,8 +81,29 @@ export class FirecrawlService {
           }
         }
         
+        // Get full-size image instead of thumbnail
+        let imageUrl = imgEl?.getAttribute('src') || '';
+        // Try data-src if src is empty (for lazy-loaded images)
+        if (!imageUrl && imgEl?.getAttribute('data-src')) {
+          imageUrl = imgEl.getAttribute('data-src') || '';
+        }
+        // Ensure image URL is absolute
+        if (imageUrl && !imageUrl.startsWith('http')) {
+          // If relative URL, convert to absolute
+          const baseUrl = new URL(url).origin;
+          imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+        }
+        // Fallback image
+        if (!imageUrl) {
+          imageUrl = 'https://via.placeholder.com/300x300?text=Producto';
+        }
+        
         // Get product URL
-        const productUrl = linkEl?.getAttribute('href') || url;
+        let productUrl = linkEl?.getAttribute('href') || '';
+        if (productUrl && !productUrl.startsWith('http')) {
+          const baseUrl = new URL(url).origin;
+          productUrl = `${baseUrl}${productUrl.startsWith('/') ? '' : '/'}${productUrl}`;
+        }
         
         // Create unique ID
         const id = `product-${index + 1}-${Date.now().toString().slice(-6)}`;
@@ -92,8 +113,8 @@ export class FirecrawlService {
           name: nameEl?.textContent?.trim() || `Producto ${index + 1}`,
           price: priceEl?.textContent?.trim() || 'Precio no disponible',
           category,
-          imageUrl: imgEl?.getAttribute('src') || 'https://via.placeholder.com/300x300?text=Producto',
-          url: productUrl,
+          imageUrl,
+          url: productUrl || url,
           description: `Producto de ${category} disponible en Profesa`
         };
       });

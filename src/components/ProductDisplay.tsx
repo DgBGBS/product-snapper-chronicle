@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { type Product } from '@/utils/scraper';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 interface ProductDisplayProps {
   products: Product[];
@@ -59,12 +60,18 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
           }}
         >
           <div className="relative aspect-video overflow-hidden bg-muted/20">
-            <img 
-              src={product.imageUrl} 
-              alt={product.name} 
-              className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-              loading="lazy"
-            />
+            <Link to={`/product/${product.id}`}>
+              <img 
+                src={product.imageUrl} 
+                alt={product.name} 
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://via.placeholder.com/300x300?text=Producto';
+                }}
+              />
+            </Link>
           </div>
           
           <div className="p-4">
@@ -83,14 +90,12 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
             )}
             
             <div className="mt-4">
-              <a 
-                href={product.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <Link 
+                to={`/product/${product.id}`}
                 className="text-sm text-primary hover:underline transition-colors duration-200"
               >
                 Ver detalles
-              </a>
+              </Link>
             </div>
           </div>
         </div>
