@@ -30,7 +30,7 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 9;
   
-  // Fetch data directly from the new URL
+  // Fetch data directly from categoria-producto URL
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -38,7 +38,7 @@ const Index = () => {
         console.log('Fetching products from categoria-producto URL');
         const result = await scrapeProducts('https://profesa.info/categoria-producto/', {
           recursive: true,
-          maxDepth: 2,
+          maxDepth: 3, // Increase max depth to find more products
           includeProductPages: true
         });
         
@@ -61,7 +61,27 @@ const Index = () => {
       }
     };
     
-    fetchData();
+    // Load data from localStorage first (for fast initial load)
+    const savedData = localStorage.getItem('scraped_products');
+    const savedTimestamp = localStorage.getItem('scraped_timestamp');
+    
+    if (savedData && savedTimestamp) {
+      try {
+        const parsedData = JSON.parse(savedData) as Product[];
+        setProducts(parsedData);
+        setCategories(extractCategories(parsedData));
+        setLastUpdated(savedTimestamp);
+        setIsLoading(false);
+        
+        // Still fetch fresh data in the background
+        fetchData();
+      } catch (e) {
+        console.error('Error loading saved data:', e);
+        fetchData();
+      }
+    } else {
+      fetchData();
+    }
   }, []);
   
   // Filter products by category and search query
@@ -122,7 +142,7 @@ const Index = () => {
       {/* Header section */}
       <header 
         className={cn(
-          "relative flex flex-col items-center justify-center text-center py-16 px-6",
+          "relative flex flex-col items-center justify-center text-center py-12 px-6",
           "bg-gradient-to-b from-background to-muted/20",
           "transition-all duration-1000",
           mounted ? "opacity-100" : "opacity-0"
@@ -142,7 +162,7 @@ const Index = () => {
             Catálogo de Productos
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
-            Explora nuestra selección de productos profesionales
+            Explora todos los productos disponibles de todas las categorías
           </p>
         </div>
       </header>

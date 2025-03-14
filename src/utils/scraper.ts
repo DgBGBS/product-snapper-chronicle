@@ -1,4 +1,3 @@
-
 import { FirecrawlService } from './FirecrawlService';
 
 export interface Product {
@@ -189,8 +188,68 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
       }
     };
     
-    // Start the recursive crawl from the initial URL
+    // Start with the main category page URL
+    console.log("Starting crawl from main category page:", baseUrl);
     await crawlPage(baseUrl);
+    
+    // If we have few or no products, try to fetch all category pages directly
+    if (allProducts.length < 10) {
+      console.log("Few products found. Trying to fetch all category pages directly...");
+      try {
+        // First, check the main categories page
+        const result = await FirecrawlService.crawlWebsite(`${baseUrlObj.origin}/categoria-producto/`);
+        
+        if (result.success && result.data?.links) {
+          // Find all category links
+          const categoryLinks: string[] = [];
+          
+          for (const link of result.data.links) {
+            if (typeof link === 'string' && 
+                link.includes('/categoria-producto/') && 
+                !link.includes('/page/') && 
+                link !== `${baseUrlObj.origin}/categoria-producto/`) {
+              categoryLinks.push(link);
+            }
+          }
+          
+          console.log(`Found ${categoryLinks.length} category pages to crawl directly`);
+          
+          // Crawl each category page
+          for (const categoryLink of categoryLinks) {
+            if (!visitedUrls.has(categoryLink)) {
+              console.log(`Crawling category page: ${categoryLink}`);
+              await crawlPage(categoryLink, 0); // Reset depth for category pages
+              
+              // Also check for pagination on this category
+              try {
+                const catResult = await FirecrawlService.crawlWebsite(categoryLink);
+                if (catResult.success && catResult.data?.links) {
+                  const paginationLinks = (catResult.data.links as string[])
+                    .filter(link => 
+                      typeof link === 'string' && 
+                      link.includes(categoryLink) && 
+                      link.includes('/page/')
+                    );
+                  
+                  console.log(`Found ${paginationLinks.length} pagination links for category ${categoryLink}`);
+                  
+                  for (const pageLink of paginationLinks) {
+                    if (!visitedUrls.has(pageLink)) {
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      await crawlPage(pageLink, 0);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error processing category pagination: ${categoryLink}`, error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching all categories:", error);
+      }
+    }
     
     // Remove duplicate products based on URL or ID
     const uniqueProducts = Array.from(
@@ -205,65 +264,41 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/categor
     
     console.log(`Completed crawling with ${visitedUrls.size} pages visited. Found ${finalProducts.length} unique products.`);
     
-    // If no products found or very few, try direct scraping of the main product page
-    if (finalProducts.length < 3 && options.includeProductPages) {
-      console.log("Few or no products found via recursive crawling. Trying direct product page.");
-      const productPageUrl = `${baseUrl.replace(/\/categoria-producto\/?$/, '')}/producto/`;
+    // If still very few products, try other approaches
+    if (finalProducts.length < 5) {
+      console.log("Very few products found. Trying additional methods...");
       
-      try {
-        const result = await FirecrawlService.crawlWebsite(productPageUrl);
-        if (result.success && result.data?.data?.length > 0) {
-          console.log(`Found ${result.data.data.length} products on ${productPageUrl}`);
-          
-          // Process and add these products
-          const directProducts = result.data.data.map((product: Product) => ({
-            ...product,
-            id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
-            url: product.url || productPageUrl,
-            siteSource: baseUrlObj.hostname
-          }));
-          
-          // Add only products that don't already exist
-          const existingIds = new Set(finalProducts.map(p => p.id));
-          const newProducts = directProducts.filter(p => !existingIds.has(p.id));
-          
-          if (newProducts.length > 0) {
-            console.log(`Adding ${newProducts.length} new products from direct scraping`);
-            finalProducts.push(...newProducts);
+      // Try specific product listing URLs
+      const additionalUrls = [
+        `${baseUrlObj.origin}/productos/`,
+        `${baseUrlObj.origin}/tienda/`,
+        `${baseUrlObj.origin}/shop/`,
+        `${baseUrlObj.origin}/todos-los-productos/`
+      ];
+      
+      for (const additionalUrl of additionalUrls) {
+        if (!visitedUrls.has(additionalUrl)) {
+          try {
+            console.log(`Trying additional URL: ${additionalUrl}`);
+            await crawlPage(additionalUrl, 0);
+          } catch (error) {
+            console.error(`Error with additional URL ${additionalUrl}:`, error);
           }
         }
-      } catch (error) {
-        console.error(`Error with direct product page scraping:`, error);
       }
     }
     
-    // Try another backup approach if still no products
-    if (finalProducts.length === 0) {
-      try {
-        console.log("Trying alternative scraping approach with /productos/ URL");
-        const productosUrl = `${baseUrl.replace(/\/categoria-producto\/?$/, '')}/productos/`;
-        const result = await FirecrawlService.crawlWebsite(productosUrl);
-        
-        if (result.success && result.data?.data?.length > 0) {
-          console.log(`Found ${result.data.data.length} products on ${productosUrl}`);
-          
-          const backupProducts = result.data.data.map((product: Product) => ({
-            ...product,
-            id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
-            url: product.url || productosUrl,
-            siteSource: baseUrlObj.hostname
-          }));
-          
-          finalProducts.push(...backupProducts);
-        }
-      } catch (error) {
-        console.error("Error with backup scraping approach:", error);
-      }
-    }
+    // Final processing - ensure we have unique products
+    const finalUniqueProducts = Array.from(
+      new Map(allProducts.map(product => [product.url || product.id, product])).values()
+    ).map(product => ({
+      ...product,
+      siteSource: baseUrlObj.hostname
+    }));
     
     return {
       success: true,
-      products: finalProducts,
+      products: finalUniqueProducts,
       storeInfo,
       contactInfo,
       lastUpdated: new Date().toISOString(),
