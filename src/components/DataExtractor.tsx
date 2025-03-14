@@ -39,12 +39,16 @@ const DataExtractor = ({
         setProgress(prev => Math.min(prev + 10, 70));
       }, 300);
       
+      // Log start of scraping
+      console.log('Starting to scrape products from profesa.info/tienda');
+      
       // Fetch data
       const result: ScrapeResult = await scrapeProducts();
       clearInterval(progressInterval);
       
       if (result.success) {
         setProgress(80);
+        console.log(`Successfully scraped ${result.products.length} products`);
         
         // Save to Google Sheets
         const storageResult = await saveToGoogleSheets(result.products);
