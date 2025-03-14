@@ -61,6 +61,10 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
     let storeInfo: StoreInfo | undefined;
     let contactInfo: ContactInfo | undefined;
     
+    // Ensure URL is properly formatted
+    const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    const baseUrlObj = new URL(baseUrl);
+    
     // Recursive crawler function
     const crawlPage = async (pageUrl: string, depth: number = 0): Promise<void> => {
       // Skip if already visited or max depth reached
@@ -68,88 +72,158 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
         return;
       }
       
-      visitedUrls.add(pageUrl);
-      console.log(`Crawling page at depth ${depth}: ${pageUrl}`);
-      
-      // Use the FirecrawlService to scrape the website
-      const result = await FirecrawlService.crawlWebsite(pageUrl);
-      
-      if (!result.success) {
-        console.error(`Error crawling ${pageUrl}:`, result.error);
+      // Check if URL is valid
+      try {
+        new URL(pageUrl);
+      } catch (e) {
+        console.error(`Invalid URL: ${pageUrl}`);
         return;
       }
       
-      // Extract product data
-      const pageProducts: Product[] = result.data?.data || [];
+      visitedUrls.add(pageUrl);
+      console.log(`Crawling page at depth ${depth}: ${pageUrl}`);
       
-      // Save products
-      if (pageProducts.length > 0) {
-        console.log(`Found ${pageProducts.length} products on ${pageUrl}`);
-        allProducts.push(...pageProducts);
-      }
-      
-      // Store store info from the first page only
-      if (depth === 0) {
-        storeInfo = result.data?.storeInfo;
-        contactInfo = result.data?.contactInfo;
-      }
-      
-      // If recursive option is enabled, extract and follow links
-      if (options.recursive && depth < options.maxDepth) {
-        const links = result.data?.links || [];
+      try {
+        // Use the FirecrawlService to scrape the website
+        const result = await FirecrawlService.crawlWebsite(pageUrl);
         
-        // Filter links to follow
-        const validLinks = links.filter((link: string) => {
-          // Ensure link is from the same domain
-          const urlObj = new URL(link);
-          const baseUrlObj = new URL(url);
-          
-          if (urlObj.hostname !== baseUrlObj.hostname) {
-            return false;
-          }
-          
-          // Check if it's a product page
-          const isProductPage = link.includes('/producto/') || 
-                               link.includes('/product/') || 
-                               link.includes('/item/') ||
-                               link.match(/\/p\/[\w-]+\/?$/);
-          
-          // Check if it's a category page
-          const isCategoryPage = link.includes('/categoria/') || 
-                                link.includes('/category/') || 
-                                link.includes('/tienda/') ||
-                                link.includes('/shop/') ||
-                                link.match(/\/c\/[\w-]+\/?$/);
-          
-          return isCategoryPage || (options.includeProductPages && isProductPage);
-        });
+        if (!result.success) {
+          console.error(`Error crawling ${pageUrl}:`, result.error);
+          return;
+        }
         
-        console.log(`Found ${validLinks.length} subpages to crawl from ${pageUrl}`);
+        // Extract product data
+        const pageProducts: Product[] = result.data?.data || [];
         
-        // Crawl subpages one by one to avoid overwhelming the server
-        for (const link of validLinks) {
-          if (!visitedUrls.has(link)) {
-            // Add a small delay between requests to be considerate
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await crawlPage(link, depth + 1);
+        // Make sure products have IDs and URLs
+        const processedProducts = pageProducts.map(product => ({
+          ...product,
+          id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
+          url: product.url || pageUrl
+        }));
+        
+        // Save products
+        if (processedProducts.length > 0) {
+          console.log(`Found ${processedProducts.length} products on ${pageUrl}`);
+          allProducts.push(...processedProducts);
+        }
+        
+        // Store store info from the first page only
+        if (depth === 0 && result.data?.storeInfo) {
+          storeInfo = result.data.storeInfo;
+        }
+        
+        // Store contact info from the first page only
+        if (depth === 0 && result.data?.contactInfo) {
+          contactInfo = result.data.contactInfo;
+        }
+        
+        // If recursive option is enabled, extract and follow links
+        if (options.recursive && depth < options.maxDepth) {
+          const links = result.data?.links || [];
+          
+          // Filter links to follow
+          const validLinks = links.filter((link: string) => {
+            try {
+              // Ensure link is valid
+              const linkUrl = new URL(link);
+              
+              // Ensure link is from the same domain
+              if (linkUrl.hostname !== baseUrlObj.hostname) {
+                return false;
+              }
+              
+              // Normalize the URL (remove trailing slashes, query params, etc)
+              const normalizedLink = `${linkUrl.protocol}//${linkUrl.hostname}${linkUrl.pathname}`;
+              
+              // Check if it's a product page
+              const isProductPage = normalizedLink.includes('/producto/') || 
+                                 normalizedLink.includes('/product/') || 
+                                 normalizedLink.includes('/item/') ||
+                                 normalizedLink.match(/\/p\/[\w-]+\/?$/);
+              
+              // Check if it's a category page
+              const isCategoryPage = normalizedLink.includes('/categoria/') || 
+                                  normalizedLink.includes('/category/') || 
+                                  normalizedLink.includes('/tienda/') ||
+                                  normalizedLink.includes('/shop/') ||
+                                  normalizedLink.match(/\/c\/[\w-]+\/?$/);
+              
+              // Check if we should visit this link
+              return isCategoryPage || (options.includeProductPages && isProductPage);
+            } catch (e) {
+              console.error(`Invalid link: ${link}`);
+              return false;
+            }
+          });
+          
+          const uniqueLinks = [...new Set(validLinks)]; // Remove duplicates
+          console.log(`Found ${uniqueLinks.length} subpages to crawl from ${pageUrl}`);
+          
+          // Crawl subpages one by one to avoid overwhelming the server
+          for (const link of uniqueLinks) {
+            if (!visitedUrls.has(link)) {
+              // Add a small delay between requests to be considerate
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              try {
+                await crawlPage(link, depth + 1);
+              } catch (error) {
+                console.error(`Error crawling subpage ${link}:`, error);
+                // Continue with other links even if one fails
+              }
+            }
           }
         }
+      } catch (error) {
+        console.error(`Error processing ${pageUrl}:`, error);
+        // Continue with other pages even if one fails
       }
     };
     
     // Start the recursive crawl from the initial URL
-    await crawlPage(url);
+    await crawlPage(baseUrl);
     
     // Remove duplicate products based on URL or ID
     const uniqueProducts = Array.from(
       new Map(allProducts.map(product => [product.url || product.id, product])).values()
     );
     
-    console.log(`Completed crawling with ${visitedUrls.size} pages visited. Found ${uniqueProducts.length} unique products.`);
+    // Add site source to products
+    const finalProducts = uniqueProducts.map(product => ({
+      ...product,
+      siteSource: baseUrlObj.hostname
+    }));
+    
+    console.log(`Completed crawling with ${visitedUrls.size} pages visited. Found ${finalProducts.length} unique products.`);
+    
+    // If no products found, try direct scraping of the main product page
+    if (finalProducts.length === 0 && options.includeProductPages) {
+      console.log("No products found via recursive crawling. Trying direct product page.");
+      const productPageUrl = `${baseUrl.replace(/\/tienda\/?$/, '')}/producto/`;
+      
+      try {
+        const result = await FirecrawlService.crawlWebsite(productPageUrl);
+        if (result.success && result.data?.data?.length > 0) {
+          console.log(`Found ${result.data.data.length} products on ${productPageUrl}`);
+          
+          // Process and add these products
+          const directProducts = result.data.data.map((product: Product) => ({
+            ...product,
+            id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
+            url: product.url || productPageUrl,
+            siteSource: baseUrlObj.hostname
+          }));
+          
+          finalProducts.push(...directProducts);
+        }
+      } catch (error) {
+        console.error(`Error with direct product page scraping:`, error);
+      }
+    }
     
     return {
       success: true,
-      products: uniqueProducts,
+      products: finalProducts,
       storeInfo,
       contactInfo,
       lastUpdated: new Date().toISOString(),
