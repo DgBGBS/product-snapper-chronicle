@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { type Product } from '@/utils/scraper';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProductDisplayProps {
   products: Product[];
@@ -11,10 +12,18 @@ interface ProductDisplayProps {
 
 const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) => {
   const [mounted, setMounted] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleImageError = (productId: string) => {
+    setImageErrors(prev => ({
+      ...prev,
+      [productId]: true
+    }));
+  };
 
   if (isLoading) {
     return (
@@ -61,16 +70,19 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
         >
           <div className="relative aspect-video overflow-hidden bg-muted/20">
             <Link to={`/product/${product.id}`}>
-              <img 
-                src={product.imageUrl} 
-                alt={product.name} 
-                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                loading="lazy"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = 'https://via.placeholder.com/300x300?text=Producto';
-                }}
-              />
+              {imageErrors[product.id] ? (
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                  <span className="text-muted-foreground">Imagen no disponible</span>
+                </div>
+              ) : (
+                <img 
+                  src={product.imageUrl} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                  loading="lazy"
+                  onError={() => handleImageError(product.id)}
+                />
+              )}
             </Link>
           </div>
           
@@ -86,7 +98,7 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
             </div>
             
             {product.description && (
-              <p className="text-sm text-muted-foreground mt-2">{product.description}</p>
+              <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{product.description}</p>
             )}
             
             <div className="mt-4">

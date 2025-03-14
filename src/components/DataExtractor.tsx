@@ -21,6 +21,23 @@ const DataExtractor = ({
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const fetchingRef = useRef(false);
   
+  // Cargar datos de localStorage al inicio
+  useEffect(() => {
+    const savedData = localStorage.getItem('scraped_products');
+    const savedTimestamp = localStorage.getItem('scraped_timestamp');
+    
+    if (savedData && savedTimestamp) {
+      try {
+        const parsedData = JSON.parse(savedData) as Product[];
+        console.log('Cargando datos guardados:', parsedData.length, 'productos');
+        onDataFetched(parsedData, savedTimestamp);
+        setLastUpdated(savedTimestamp);
+      } catch (e) {
+        console.error('Error al cargar datos guardados:', e);
+      }
+    }
+  }, [onDataFetched]);
+  
   // Function to fetch data
   const fetchData = useCallback(async () => {
     // Prevent concurrent fetches
@@ -52,10 +69,11 @@ const DataExtractor = ({
         
         // Save products to localStorage for the detail page to access
         localStorage.setItem('scraped_products', JSON.stringify(result.products));
+        localStorage.setItem('scraped_timestamp', result.lastUpdated);
         console.log('Products saved to localStorage for detail page access');
         
         // Save to Google Sheets
-        const storageResult = await saveToGoogleSheets(result.products);
+        await saveToGoogleSheets(result.products);
         setProgress(100);
         
         // Update state
