@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, ExternalLink, ShoppingCart, Tag, Package, Info, ImageOff } from 'lucide-react';
+import { ArrowLeft, Star, ExternalLink, ShoppingCart, Tag, Package, Info, ImageOff, Barcode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
@@ -264,7 +264,8 @@ const ProductDetail = () => {
                 <div className="mt-2">
                   <span className={cn(
                     "text-sm font-medium",
-                    product.stockStatus.toLowerCase().includes('stock') ? 
+                    product.stockStatus.toLowerCase().includes('stock') || 
+                    product.stockStatus.toLowerCase().includes('disponible') ? 
                       "text-green-600 dark:text-green-400" : 
                       "text-red-600 dark:text-red-400"
                   )}>
@@ -279,10 +280,10 @@ const ProductDetail = () => {
             <Tabs defaultValue="description" className="w-full">
               <TabsList className="w-full">
                 <TabsTrigger value="description" className="flex-1">Descripción</TabsTrigger>
-                {product.specifications && Object.keys(product.specifications).length > 0 && (
+                {(product.specifications && Object.keys(product.specifications).length > 0) && (
                   <TabsTrigger value="specifications" className="flex-1">Especificaciones</TabsTrigger>
                 )}
-                {product.metadata && Object.keys(product.metadata).length > 0 && (
+                {(product.metadata && Object.keys(product.metadata).length > 0) && (
                   <TabsTrigger value="metadata" className="flex-1">Más Detalles</TabsTrigger>
                 )}
               </TabsList>
@@ -328,7 +329,21 @@ const ProductDetail = () => {
               {product.sku && (
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Tag size={16} className="mr-2" />
-                  <span>SKU: {product.sku}</span>
+                  <span>SKU / Referencia: {product.sku}</span>
+                </div>
+              )}
+              
+              {product.code && product.code !== product.sku && (
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Package size={16} className="mr-2" />
+                  <span>Código: {product.code}</span>
+                </div>
+              )}
+              
+              {product.ean && (
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Barcode size={16} className="mr-2" />
+                  <span>EAN / Código de barras: {product.ean}</span>
                 </div>
               )}
               

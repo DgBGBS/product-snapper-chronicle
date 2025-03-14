@@ -19,6 +19,14 @@ export interface Product {
   specifications?: Record<string, string>;
   metadata?: Record<string, string>;
   siteSource?: string;
+  // Campos adicionales
+  ean?: string;
+  code?: string;
+  barcode?: string;
+  weight?: string;
+  dimensions?: string;
+  availability?: string;
+  manufacturerCode?: string;
 }
 
 export interface StoreInfo {
@@ -177,6 +185,181 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
       return largeCatalogSites.some(site => hostname.includes(site));
     };
     
+    // Función para extraer detalles específicos de producto basados en el sitio
+    const enhanceProductDetails = (product: Product, html: string, source: string) => {
+      if (!product) return product;
+      
+      // Detector de sitio
+      const isProfesa = source.includes('profesa.info') || source.includes('profesa');
+      const isAmazon = source.includes('amazon');
+      const isEcommerce = source.includes('woocommerce') || source.includes('shopify') || source.includes('prestashop');
+      
+      try {
+        // Mejorar metadatos específicos para Profesa
+        if (isProfesa && html) {
+          // Crear un DOM temporal para analizar el HTML
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          
+          // Extraer código/referencia (común en Profesa)
+          const codeElement = doc.querySelector('.sku_wrapper .sku');
+          if (codeElement && codeElement.textContent) {
+            product.sku = codeElement.textContent.trim();
+            product.code = codeElement.textContent.trim();
+          }
+          
+          // Extraer precio actualizado
+          const priceElement = doc.querySelector('.price .woocommerce-Price-amount');
+          if (priceElement && priceElement.textContent) {
+            product.price = priceElement.textContent.trim();
+          }
+          
+          // Extraer estado de stock
+          const stockElement = doc.querySelector('.stock');
+          if (stockElement && stockElement.textContent) {
+            product.stockStatus = stockElement.textContent.trim();
+            product.availability = stockElement.textContent.trim();
+          }
+          
+          // Extraer EAN (código de barras)
+          const metaElements = doc.querySelectorAll('.product_meta .detail-container');
+          metaElements.forEach(el => {
+            const label = el.querySelector('.detail-label');
+            const value = el.querySelector('.detail-content');
+            
+            if (label && value) {
+              const labelText = label.textContent?.trim().toLowerCase() || '';
+              const valueText = value.textContent?.trim() || '';
+              
+              if (labelText.includes('ean') || labelText.includes('código de barras') || labelText.includes('barcode')) {
+                product.ean = valueText;
+                product.barcode = valueText;
+              } else if (labelText.includes('peso') || labelText.includes('weight')) {
+                product.weight = valueText;
+              } else if (labelText.includes('dimensiones') || labelText.includes('dimensions')) {
+                product.dimensions = valueText;
+              } else if (labelText.includes('fabricante') || labelText.includes('manufacturer')) {
+                product.manufacturerCode = valueText;
+              }
+              
+              // Añadir a especificaciones también
+              if (labelText && valueText) {
+                if (!product.specifications) product.specifications = {};
+                product.specifications[labelText] = valueText;
+              }
+            }
+          });
+          
+          // Extraer más especificaciones de tablas
+          const specTables = doc.querySelectorAll('.woocommerce-product-attributes');
+          specTables.forEach(table => {
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+              const label = row.querySelector('th');
+              const value = row.querySelector('td');
+              
+              if (label && value) {
+                const labelText = label.textContent?.trim() || '';
+                const valueText = value.textContent?.trim() || '';
+                
+                if (!product.specifications) product.specifications = {};
+                product.specifications[labelText] = valueText;
+              }
+            });
+          });
+        }
+        
+        // Mejorar detalles para Amazon
+        else if (isAmazon && html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          
+          // Extraer precio Amazon
+          const priceElement = doc.querySelector('#price_inside_buybox, #priceblock_ourprice');
+          if (priceElement && priceElement.textContent) {
+            product.price = priceElement.textContent.trim();
+          }
+          
+          // Extraer ASIN (SKU en Amazon)
+          const detailBullets = doc.querySelectorAll('#detailBullets_feature_div li, #productDetails_detailBullets_sections1 tr');
+          detailBullets.forEach(item => {
+            const text = item.textContent || '';
+            if (text.includes('ASIN') || text.includes('ISBN')) {
+              const asin = text.split(':')[1]?.trim() || '';
+              if (asin) {
+                product.sku = asin;
+                product.code = asin;
+              }
+            }
+          });
+        }
+        
+        // Para sitios genéricos de ecommerce
+        else if (isEcommerce && html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          
+          // Búsqueda genérica de precio
+          const priceSelectors = [
+            '.price .amount', 
+            '.product-price', 
+            '.price-wrapper .price', 
+            '[data-product-price]',
+            '.product_price',
+            '.price-box .price'
+          ];
+          
+          for (const selector of priceSelectors) {
+            const priceElement = doc.querySelector(selector);
+            if (priceElement && priceElement.textContent) {
+              product.price = priceElement.textContent.trim();
+              break;
+            }
+          }
+          
+          // Búsqueda genérica de SKU
+          const skuSelectors = [
+            '.sku', 
+            '.product-sku', 
+            '[data-product-sku]',
+            '.product_meta .sku'
+          ];
+          
+          for (const selector of skuSelectors) {
+            const skuElement = doc.querySelector(selector);
+            if (skuElement && skuElement.textContent) {
+              const skuText = skuElement.textContent.trim();
+              product.sku = skuText;
+              product.code = skuText;
+              break;
+            }
+          }
+          
+          // Búsqueda genérica de disponibilidad
+          const stockSelectors = [
+            '.stock', 
+            '.availability', 
+            '.product-stock', 
+            '[data-product-stock]',
+            '.product-availability'
+          ];
+          
+          for (const selector of stockSelectors) {
+            const stockElement = doc.querySelector(selector);
+            if (stockElement && stockElement.textContent) {
+              product.stockStatus = stockElement.textContent.trim();
+              product.availability = stockElement.textContent.trim();
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error al mejorar detalles del producto:', e);
+      }
+      
+      return product;
+    };
+    
     // Función de rastreo recursiva con mejor manejo de errores
     const crawlPage = async (pageUrl: string, depth: number = 0): Promise<void> => {
       // Evitar bucles infinitos y exceder límites
@@ -234,14 +417,18 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
         
         // Extraer datos de productos
         const pageProducts: Product[] = result.data?.data || [];
+        const htmlContent = result.data?.html || '';
         
         // Asegurar que los productos tengan IDs y URLs
-        const processedProducts = pageProducts.map(product => ({
-          ...product,
-          id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
-          url: product.url || pageUrl,
-          siteSource: product.siteSource || baseUrlObj.hostname
-        }));
+        const processedProducts = pageProducts.map(product => {
+          const enhancedProduct = enhanceProductDetails(product, htmlContent, pageUrl);
+          return {
+            ...enhancedProduct,
+            id: enhancedProduct.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
+            url: enhancedProduct.url || pageUrl,
+            siteSource: enhancedProduct.siteSource || baseUrlObj.hostname
+          };
+        });
         
         // Guardar productos (hasta el límite establecido)
         if (processedProducts.length > 0) {
@@ -469,7 +656,11 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
           imageUrl: "https://profesa.info/wp-content/uploads/kit-jardineria.jpg",
           url: "https://profesa.info/producto/kit-jardineria/",
           description: "Kit completo para jardinería con herramientas profesionales",
-          siteSource: "profesa.info"
+          siteSource: "profesa.info",
+          sku: "KJAR-001",
+          stockStatus: "En stock",
+          ean: "8412345678901",
+          code: "KJAR-001"
         },
         {
           id: `profesa-${Date.now()}-2`,
@@ -479,7 +670,11 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
           imageUrl: "https://profesa.info/wp-content/uploads/sustrato-universal.jpg",
           url: "https://profesa.info/producto/sustrato-universal/",
           description: "Sustrato universal de alta calidad para todo tipo de plantas",
-          siteSource: "profesa.info"
+          siteSource: "profesa.info",
+          sku: "SU50-002",
+          stockStatus: "En stock (10 unidades)",
+          ean: "8412345678902",
+          code: "SU50-002"
         },
         {
           id: `profesa-${Date.now()}-3`,
@@ -489,7 +684,11 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
           imageUrl: "https://profesa.info/wp-content/uploads/abono-organico.jpg",
           url: "https://profesa.info/producto/abono-organico/",
           description: "Abono 100% orgánico ideal para hortalizas y plantas ornamentales",
-          siteSource: "profesa.info"
+          siteSource: "profesa.info",
+          sku: "AORG-003",
+          stockStatus: "Pocas unidades",
+          ean: "8412345678903",
+          code: "AORG-003"
         }
       );
       
@@ -522,7 +721,11 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
         category: product.category || "Sin categoría",
         imageUrl: product.imageUrl || `https://picsum.photos/seed/${product.id}/300/300`,
         url: product.url || baseUrl,
-        siteSource: product.siteSource || baseUrlObj.hostname
+        siteSource: product.siteSource || baseUrlObj.hostname,
+        // Asegurar que existan campos específicos para mejor visualización
+        sku: product.sku || product.code || "",
+        stockStatus: product.stockStatus || product.availability || "Estado no disponible",
+        ean: product.ean || product.barcode || ""
       };
     });
     
