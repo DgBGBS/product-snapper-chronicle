@@ -75,8 +75,8 @@ export const scrapeProducts = async (url: string, options = {
   recursive: true,
   maxDepth: 2,
   includeProductPages: true,
-  maxProducts: 100, // Límite de productos para evitar sobrecarga
-  maxPagesToVisit: 10 // Límite de páginas a visitar
+  maxProducts: 15000, // Aumentado para capturar más productos
+  maxPagesToVisit: 500 // Aumentado para visitar más páginas
 }): Promise<ScrapeResult> => {
   try {
     console.log(`Iniciando rastreo web desde ${url} con opciones:`, options);
@@ -197,7 +197,7 @@ export const scrapeProducts = async (url: string, options = {
               success: false,
               error: `El rastreo de ${pageUrl} excedió el tiempo límite`
             });
-          }, 45000); // 45 segundos de timeout por página
+          }, 60000); // 60 segundos de timeout por página, aumentado para permitir más tiempo
         });
         
         const crawlPromise = FirecrawlService.crawlWebsite(pageUrl);
@@ -316,30 +316,71 @@ export const scrapeProducts = async (url: string, options = {
           
           // Para sitios con catálogos grandes, priorizar páginas de categoría y paginación
           if (isLargeCatalogSite(pageUrl) && uniqueLinks.length > 5) {
-            const prioritizedLinks = uniqueLinks
-              .filter(link => 
-                link.includes('/categoria-producto/') || 
-                link.includes('/category/') || 
-                link.includes('/page/') || 
-                link.includes('?page=')
-              )
-              .slice(0, 5); // Limitar a 5 enlaces prioritarios
+            // Detectar patrones específicos de Profesa.info
+            const isProfesa = pageUrl.includes('profesa.info') || pageUrl.includes('profesa');
+            
+            // Filtros específicos para Profesa.info
+            const prioritizedLinks = uniqueLinks.filter(link => {
+              if (isProfesa) {
+                return link.includes('/categoria-producto/') || 
+                       link.includes('/page/') || 
+                       link.includes('?page=') ||
+                       link.includes('-cat') ||  // Patrón específico de Profesa
+                       link.match(/\/[\w-]+-cat\d+\/?$/);  // Categorías en Profesa
+              } else {
+                return link.includes('/categoria-producto/') || 
+                       link.includes('/category/') || 
+                       link.includes('/page/') || 
+                       link.includes('?page=');
+              }
+            }).slice(0, isProfesa ? 50 : 10); // Mayor cantidad para Profesa
               
             if (prioritizedLinks.length > 0) {
-              console.log(`Sitio con catálogo grande detectado. Priorizando ${prioritizedLinks.length} enlaces de categoría/paginación`);
+              console.log(`Sitio con catálogo grande detectado (${isProfesa ? 'Profesa' : 'otro'}). Priorizando ${prioritizedLinks.length} enlaces de categoría/paginación`);
               
-              // Rastrear solo enlaces prioritarios
-              for (const link of prioritizedLinks) {
-                if (allProducts.length < options.maxProducts && visitedUrls.size < options.maxPagesToVisit) {
-                  await crawlPage(link, depth + 1);
+              // Rastrear enlaces prioritarios en paralelo con un límite ajustado
+              const batchSize = isProfesa ? 10 : 3; // Mayor paralelismo para Profesa
+              for (let i = 0; i < prioritizedLinks.length; i += batchSize) {
+                if (allProducts.length >= options.maxProducts) break;
+                
+                const batch = prioritizedLinks.slice(i, i + batchSize);
+                await Promise.all(batch.map(link => 
+                  crawlPage(link, depth + 1).catch(e => 
+                    console.error(`Error en rastreo paralelo: ${e}`)
+                  )
+                ));
+                
+                // Breve retraso entre lotes para evitar sobrecargar el servidor
+                if (i + batchSize < prioritizedLinks.length) {
+                  await new Promise(resolve => setTimeout(resolve, 300));
                 }
               }
+              
+              // Después de procesar enlaces prioritarios, también procesar algunos productos individuales
+              if (options.includeProductPages) {
+                const productLinks = uniqueLinks
+                  .filter(link => 
+                    !prioritizedLinks.includes(link) && 
+                    (link.includes('/producto/') || link.includes('/product/'))
+                  )
+                  .slice(0, 20); // Limitado a 20 productos individuales
+                
+                if (productLinks.length > 0) {
+                  console.log(`Procesando ${productLinks.length} páginas de productos individuales`);
+                  await Promise.all(productLinks.map(link => 
+                    crawlPage(link, depth + 1).catch(e => 
+                      console.error(`Error en rastreo de producto: ${e}`)
+                    )
+                  ));
+                }
+              }
+              
               return; // No procesar más enlaces después de los prioritarios
             }
           }
           
           // Rastrear subpáginas en paralelo con un límite
-          const parallelLimit = 3; // Máximo de solicitudes paralelas
+          const parallelLimit = 5; // Aumentado el límite de solicitudes paralelas
           for (let i = 0; i < uniqueLinks.length; i += parallelLimit) {
             if (allProducts.length >= options.maxProducts || visitedUrls.size >= options.maxPagesToVisit) {
               break; // Detenerse si alcanzamos los límites
@@ -358,7 +399,7 @@ export const scrapeProducts = async (url: string, options = {
             
             // Breve retraso entre lotes para evitar sobrecargar el servidor
             if (i + parallelLimit < uniqueLinks.length) {
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise(resolve => setTimeout(resolve, 300));
             }
           }
         }
@@ -479,7 +520,7 @@ export const scrapeProducts = async (url: string, options = {
     // Si es un sitio con catálogo grande conocido, proporcionar una estimación aproximada
     if (isLargeCatalogSite(baseUrl)) {
       if (baseUrl.includes('profesa.info') || baseUrl.includes('profesa')) {
-        totalProductsEstimate = 15000; // Estimación para Profesa.info
+        totalProductsEstimate = 15000; // Actualizado según la información del usuario
       } else if (baseUrl.includes('amazon')) {
         totalProductsEstimate = 1000000; // Estimación para Amazon
       } else {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -34,7 +33,6 @@ const DataExtractor = ({
   const fetchingRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
   
-  // Cargar datos de localStorage al inicio
   useEffect(() => {
     const savedData = localStorage.getItem('scraped_products');
     const savedTimestamp = localStorage.getItem('scraped_timestamp');
@@ -51,9 +49,7 @@ const DataExtractor = ({
     }
   }, [onDataFetched]);
   
-  // Function to fetch data
   const fetchData = useCallback(async (url?: string) => {
-    // Prevent concurrent fetches
     if (fetchingRef.current) {
       console.log('Fetch already in progress, skipping');
       return;
@@ -66,19 +62,18 @@ const DataExtractor = ({
     setProgress(20);
     
     try {
-      // Simulate progress updates during fetch
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 5, 70));
       }, 500);
       
-      // Log start of scraping
       console.log(`Starting to scrape products from ${targetSiteUrl} with recursive=${isRecursive}, maxDepth=${maxDepth}`);
       
-      // Fetch data with recursive options
       const result: ScrapeResult = await scrapeProducts(targetSiteUrl, {
         recursive: isRecursive,
         maxDepth: parseInt(maxDepth, 10),
-        includeProductPages: includeProductPages
+        includeProductPages: includeProductPages,
+        maxProducts: 15000,
+        maxPagesToVisit: 500
       });
       
       clearInterval(progressInterval);
@@ -87,7 +82,6 @@ const DataExtractor = ({
         setProgress(80);
         console.log(`Successfully scraped ${result.products.length} products from ${targetSiteUrl}`);
         
-        // Enhanced data logging
         if (result.storeInfo) {
           console.log('Store info:', result.storeInfo);
         }
@@ -96,30 +90,24 @@ const DataExtractor = ({
           console.log('Contact info:', result.contactInfo);
         }
         
-        // Save products to localStorage for the detail page to access
         localStorage.setItem('scraped_products', JSON.stringify(result.products));
         localStorage.setItem('scraped_timestamp', result.lastUpdated);
         
-        // Save store info if available
         if (result.storeInfo) {
           localStorage.setItem('store_info', JSON.stringify(result.storeInfo));
         }
         
-        // Save contact info if available
         if (result.contactInfo) {
           localStorage.setItem('contact_info', JSON.stringify(result.contactInfo));
         }
         
         console.log('Products and additional data saved to localStorage');
         
-        // Save to Google Sheets
         await saveToGoogleSheets(result.products);
         setProgress(100);
         
-        // Update state
         setLastUpdated(result.lastUpdated);
         
-        // Pass data to parent component
         console.log('DataExtractor: Passing', result.products.length, 'products to parent');
         onDataFetched(result.products, result.lastUpdated);
         
@@ -145,7 +133,6 @@ const DataExtractor = ({
     }
   }, [onDataFetched, toast, targetUrl, isRecursive, maxDepth, includeProductPages]);
   
-  // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (targetUrl) {
@@ -153,25 +140,20 @@ const DataExtractor = ({
     }
   };
   
-  // Handle interval change
   const handleIntervalChange = (value: string) => {
     setUpdateInterval(value);
     if (isRealtime) {
-      // Restart interval with new value
       setupRealtimeUpdates(parseInt(value, 10));
     }
   };
   
-  // Setup real-time updates
   const setupRealtimeUpdates = useCallback((seconds: number) => {
-    // Clear existing interval if any
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
       console.log("Cleared existing update interval");
     }
     
-    // Set up new interval
     if (isRealtime) {
       console.log(`Setting up real-time updates every ${seconds} seconds`);
       intervalRef.current = window.setInterval(() => {
@@ -189,7 +171,6 @@ const DataExtractor = ({
     };
   }, [fetchData, isRealtime]);
   
-  // Handle real-time toggle
   const handleRealtimeToggle = (checked: boolean) => {
     setIsRealtime(checked);
     if (checked) {
@@ -210,7 +191,6 @@ const DataExtractor = ({
     }
   };
   
-  // Cleanup interval on unmount
   useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
@@ -220,7 +200,6 @@ const DataExtractor = ({
     };
   }, []);
   
-  // First load data fetch
   useEffect(() => {
     const initialFetch = async () => {
       await fetchData();
@@ -230,7 +209,6 @@ const DataExtractor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Setup scheduled task only if not in real-time mode
   useEffect(() => {
     if (!isRealtime) {
       console.log(`Setting up scheduled task to run every ${autoFetchInterval} minutes`);

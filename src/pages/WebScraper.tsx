@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,6 @@ const WebScraper = () => {
   const [corsErrorCount, setCorsErrorCount] = useState<number>(0);
   const navigate = useNavigate();
 
-  // Función para validar URL
   const isValidUrl = (urlString: string): boolean => {
     try {
       const url = new URL(urlString);
@@ -39,7 +37,6 @@ const WebScraper = () => {
     e.preventDefault();
     resetState();
 
-    // Validar URL
     if (!url) {
       toast({
         title: "Error",
@@ -49,7 +46,6 @@ const WebScraper = () => {
       return;
     }
 
-    // Asegurar que la URL tiene formato correcto
     let formattedUrl = url;
     if (!isValidUrl(url)) {
       if (!url.startsWith('http')) {
@@ -75,19 +71,15 @@ const WebScraper = () => {
     setIsLoading(true);
     setProgress(10);
 
-    // Crear dos controladores de intervalos separados para mayor fiabilidad
     let progressInterval: NodeJS.Timeout | null = null;
     let networkCheckInterval: NodeJS.Timeout | null = null;
     let corsCheckInterval: NodeJS.Timeout | null = null;
     let globalTimeout: NodeJS.Timeout | null = null;
     
     try {
-      // Establecer un tiempo límite global para todo el proceso (4 minutos)
       globalTimeout = setTimeout(() => {
-        // Si llegamos aquí, el proceso está tomando demasiado tiempo
         clearAllIntervals();
         
-        // Guardar resultado parcial si existe
         const partialResult = {
           success: true,
           products: [],
@@ -107,24 +99,20 @@ const WebScraper = () => {
         setIsLoading(false);
         setProgress(100);
         
-        // Navegar a la página de administración con los datos parciales
         setTimeout(() => {
           navigate("/admin");
         }, 1500);
-      }, 240000); // 4 minutos
+      }, 240000);
 
-      // Control de progreso principal
       progressInterval = setInterval(() => {
         setProgress((prev) => {
-          // Limitamos el progreso al 85% hasta que tengamos resultados reales
           if (prev >= 85) {
             return 85;
           }
-          return prev + Math.random() * 2 + 1; // Progreso más natural
+          return prev + Math.random() * 2 + 1;
         });
       }, 1500);
 
-      // Comprobación periódica de conectividad
       let consecutiveNetworkChecks = 0;
       networkCheckInterval = setInterval(() => {
         fetch('https://www.google.com', { mode: 'no-cors', cache: 'no-store' })
@@ -136,9 +124,7 @@ const WebScraper = () => {
           });
       }, 10000);
       
-      // Comprobación de errores CORS
       corsCheckInterval = setInterval(() => {
-        // Si el progreso está estancado en >80% por mucho tiempo, probablemente haya problemas de CORS
         if (progress > 80 && corsErrorCount === 0) {
           setCorsErrorCount(prev => prev + 1);
           if (corsErrorCount >= 2) {
@@ -154,31 +140,27 @@ const WebScraper = () => {
         if (globalTimeout) clearTimeout(globalTimeout);
       };
 
-      // Ejecutar el rastreo con timeout para evitar bloqueos indefinidos
       const scrapingPromise = scrapeProducts(formattedUrl, {
         recursive: true,
         maxDepth: 3,
         includeProductPages: true,
+        maxProducts: 15000,
+        maxPagesToVisit: 500
       });
       
-      // Establecer un tiempo límite para el rastreo (3 minutos)
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
           reject(new Error("El rastreo ha excedido el tiempo máximo permitido (3 minutos)"));
-        }, 180000); // 3 minutos en milisegundos
+        }, 180000);
       });
       
-      // Usar Promise.race para que se resuelva con el primero que termine
       const result = await Promise.race([scrapingPromise, timeoutPromise]) as any;
 
-      // Limpiar los intervalos
       clearAllIntervals();
       
-      // Avanzar al 95% antes de procesar resultados
       setProgress(95);
 
       if (result.success) {
-        // Guardar los resultados en localStorage para que la página de administración los utilice
         localStorage.setItem("scraped_products", JSON.stringify(result.products || []));
         localStorage.setItem("scraped_timestamp", result.lastUpdated || new Date().toISOString());
         localStorage.setItem("scraped_url", formattedUrl);
@@ -191,15 +173,15 @@ const WebScraper = () => {
           localStorage.setItem("contact_info", JSON.stringify(result.contactInfo));
         }
 
-        // Completar el progreso al 100%
         setProgress(100);
 
         const productsCount = result.products?.length || 0;
+        const totalEstimated = result.totalProductsEstimate || productsCount;
         
         if (productsCount > 0) {
           toast({
             title: "Rastreo completado",
-            description: `Se encontraron ${productsCount} productos en ${formattedUrl}`,
+            description: `Se encontraron ${productsCount} productos${result.hasMoreProducts ? ` de aproximadamente ${totalEstimated}` : ''} en ${formattedUrl}`,
           });
         } else {
           toast({
@@ -209,27 +191,23 @@ const WebScraper = () => {
           });
         }
 
-        // Navegar a la página de administración
         setTimeout(() => {
           navigate("/admin");
         }, 1000);
       } else {
-        setProgress(100); // Completar el progreso aunque haya error
+        setProgress(100);
         throw new Error(result.error || "Error desconocido durante el rastreo");
       }
     } catch (error) {
       console.error("Error al rastrear la web:", error);
       
-      // Limpiar los intervalos si aún existen
       if (progressInterval) clearInterval(progressInterval);
       if (networkCheckInterval) clearInterval(networkCheckInterval);
       if (corsCheckInterval) clearInterval(corsCheckInterval);
       if (globalTimeout) clearTimeout(globalTimeout);
       
-      // Asegurar que el progreso llegue al 100% incluso con error
       setProgress(100);
       
-      // Verificar si el error es por CORS para dar un mensaje más útil
       const errorMessage = error instanceof Error ? error.message : "Error desconocido durante el rastreo";
       const isCorsError = errorMessage.includes("CORS") || 
                          errorMessage.includes("origin") || 

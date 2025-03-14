@@ -1,176 +1,120 @@
 
 import { useState, useEffect } from 'react';
-import { Product } from '@/utils/scraper';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { useMobile } from '@/hooks/use-mobile';
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ProductPaginationProps {
-  products: Product[];
-  pageSize: number;
-  onPageChange: (products: Product[]) => void;
-  totalProductsEstimate?: number;
-  hasMoreProducts?: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  totalItems?: number;
+  itemsPerPage?: number;
 }
 
-const ProductPagination = ({ 
-  products, 
-  pageSize, 
+const ProductPagination = ({
+  currentPage,
+  totalPages,
   onPageChange,
-  totalProductsEstimate,
-  hasMoreProducts
+  totalItems,
+  itemsPerPage = 10,
 }: ProductPaginationProps) => {
-  const isMobile = useMobile();
-  const [currentPage, setCurrentPage] = useState(1);
-  
-  // Calcular el número total de páginas
-  const getTotalPages = () => {
-    if (totalProductsEstimate && hasMoreProducts) {
-      return Math.ceil(totalProductsEstimate / pageSize);
-    }
-    return Math.ceil(products.length / pageSize);
-  };
-  
-  const totalPages = getTotalPages();
+  const [visiblePages, setVisiblePages] = useState<number[]>([]);
+  const isMobile = useIsMobile();
 
-  // Actualizar los productos paginados cuando cambia la página
   useEffect(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, products.length);
-    const paginatedProducts = products.slice(startIndex, endIndex);
-    
-    onPageChange(paginatedProducts);
-  }, [currentPage, products, pageSize, onPageChange]);
-
-  // Si no hay productos o solo hay una página, no mostrar paginación
-  if (products.length <= pageSize && !hasMoreProducts) {
-    return null;
-  }
-
-  // Cambiar de página
-  const handlePageChange = (page: number) => {
-    // Solo cambiar si es una página válida y tenemos productos para mostrar
-    if (page >= 1 && page <= totalPages && (page === 1 || (page - 1) * pageSize < products.length)) {
-      setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // Generar los ítems de paginación
-  const renderPaginationItems = () => {
-    const items = [];
-    const maxVisiblePages = isMobile ? 3 : 5;
-    
-    // Determinar qué páginas mostrar
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-    
-    // Ajustar si estamos cerca del final
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    // Siempre mostrar la primera página
-    if (startPage > 1) {
-      items.push(
-        <PaginationItem key="first">
-          <PaginationLink 
-            onClick={() => handlePageChange(1)}
-            isActive={currentPage === 1}
-          >
-            1
-          </PaginationLink>
-        </PaginationItem>
-      );
+    const calculateVisiblePages = () => {
+      const maxVisiblePages = isMobile ? 3 : 5;
+      const pages: number[] = [];
       
-      // Mostrar elipsis si hay páginas entre la primera y las mostradas
-      if (startPage > 2) {
-        items.push(
-          <PaginationItem key="ellipsis-start">
-            <PaginationEllipsis />
-          </PaginationItem>
-        );
-      }
-    }
-
-    // Mostrar páginas del rango calculado
-    for (let i = startPage; i <= endPage; i++) {
-      items.push(
-        <PaginationItem key={i}>
-          <PaginationLink 
-            onClick={() => handlePageChange(i)}
-            isActive={currentPage === i}
-          >
-            {i}
-          </PaginationLink>
-        </PaginationItem>
-      );
-    }
-
-    // Mostrar elipsis y última página si hay más páginas
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        items.push(
-          <PaginationItem key="ellipsis-end">
-            <PaginationEllipsis />
-          </PaginationItem>
-        );
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
       }
       
-      items.push(
-        <PaginationItem key="last">
-          <PaginationLink 
-            onClick={() => handlePageChange(totalPages)}
-            isActive={currentPage === totalPages}
-          >
-            {totalPages}
-          </PaginationLink>
-        </PaginationItem>
-      );
-    }
-
-    return items;
-  };
-
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+      
+      setVisiblePages(pages);
+    };
+    
+    calculateVisiblePages();
+  }, [currentPage, totalPages, isMobile]);
+  
+  if (totalPages <= 1) return null;
+  
   return (
-    <Pagination className="my-6">
-      <PaginationContent>
-        <PaginationItem>
-          <PaginationPrevious 
-            onClick={() => handlePageChange(currentPage - 1)}
-            className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-            aria-disabled={currentPage === 1}
-          />
-        </PaginationItem>
-        
-        {renderPaginationItems()}
-        
-        <PaginationItem>
-          <PaginationNext 
-            onClick={() => handlePageChange(currentPage + 1)}
-            className={
-              (currentPage === totalPages || (currentPage * pageSize >= products.length && !hasMoreProducts)) 
-                ? "pointer-events-none opacity-50" 
-                : "cursor-pointer"
-            }
-            aria-disabled={currentPage === totalPages || (currentPage * pageSize >= products.length && !hasMoreProducts)}
-          />
-        </PaginationItem>
-      </PaginationContent>
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-6 select-none">
+      <div className="text-sm text-muted-foreground mb-2 sm:mb-0">
+        {totalItems ? (
+          <>
+            Mostrando productos {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalItems)} de {totalItems}
+          </>
+        ) : (
+          <>
+            Página {currentPage} de {totalPages}
+          </>
+        )}
+      </div>
       
-      {hasMoreProducts && (
-        <div className="text-center text-sm text-muted-foreground mt-2">
-          Mostrando {Math.min(products.length, currentPage * pageSize)} de aproximadamente {totalProductsEstimate} productos
-        </div>
-      )}
-    </Pagination>
+      <div className="flex items-center space-x-1">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          aria-label="Primera página"
+        >
+          <ChevronsLeft className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          aria-label="Página anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        
+        {visiblePages.map(page => (
+          <Button
+            key={page}
+            variant={currentPage === page ? "default" : "outline"}
+            size="icon"
+            onClick={() => onPageChange(page)}
+            aria-label={`Página ${page}`}
+            aria-current={currentPage === page ? "page" : undefined}
+          >
+            {page}
+          </Button>
+        ))}
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          aria-label="Página siguiente"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          aria-label="Última página"
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 };
 
