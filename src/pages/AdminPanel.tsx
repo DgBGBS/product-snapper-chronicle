@@ -86,13 +86,28 @@ const AdminPanel = () => {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
     
-    // Ordenar productos: primero los que tienen imagen, después los que no
+    // Ordenar productos: primero los que tienen imagen real, después los que tienen "No image" o similar, y finalmente los que no tienen
     filtered.sort((a, b) => {
       const aHasImage = Boolean(a.imageUrl);
       const bHasImage = Boolean(b.imageUrl);
       
-      if (aHasImage && !bHasImage) return -1;
-      if (!aHasImage && bHasImage) return 1;
+      // Verificar si la imagen contiene "No image" o texto similar
+      const aHasNoImageText = a.imageUrl?.toLowerCase().includes('no image') || 
+                             a.imageUrl?.toLowerCase().includes('noimage') ||
+                             a.imageUrl?.toLowerCase().includes('placeholder');
+      
+      const bHasNoImageText = b.imageUrl?.toLowerCase().includes('no image') || 
+                             b.imageUrl?.toLowerCase().includes('noimage') ||
+                             b.imageUrl?.toLowerCase().includes('placeholder');
+      
+      // Productos con imagen real primero
+      if (aHasImage && !aHasNoImageText && (!bHasImage || bHasNoImageText)) return -1;
+      if (bHasImage && !bHasNoImageText && (!aHasImage || aHasNoImageText)) return 1;
+      
+      // Productos con "No image" después
+      if (aHasImage && aHasNoImageText && !bHasImage) return -1;
+      if (bHasImage && bHasNoImageText && !aHasImage) return 1;
+      
       return 0;
     });
     
