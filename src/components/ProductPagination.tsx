@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ProductPaginationProps {
@@ -47,33 +47,24 @@ const ProductPagination = ({
   if (totalPages <= 1) return null;
   
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between mt-6 select-none">
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 select-none">
       <div className="text-sm text-muted-foreground mb-2 sm:mb-0">
         {totalItems ? (
-          <>
-            Mostrando productos {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalItems)} de {totalItems}
-          </>
+          <span className="text-xs">
+            {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} de {totalItems}
+          </span>
         ) : (
-          <>
+          <span className="text-xs">
             Página {currentPage} de {totalPages}
-          </>
+          </span>
         )}
       </div>
       
       <div className="flex items-center space-x-1">
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          onClick={() => onPageChange(1)}
-          disabled={currentPage === 1}
-          aria-label="Primera página"
-        >
-          <ChevronsLeft className="h-4 w-4" />
-        </Button>
-        
-        <Button
-          variant="outline"
-          size="icon"
+          className="h-8 w-8"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           aria-label="Página anterior"
@@ -81,11 +72,12 @@ const ProductPagination = ({
           <ChevronLeft className="h-4 w-4" />
         </Button>
         
-        {visiblePages.map(page => (
+        {!isMobile && visiblePages.map(page => (
           <Button
             key={page}
-            variant={currentPage === page ? "default" : "outline"}
-            size="icon"
+            variant={currentPage === page ? "default" : "ghost"}
+            size="sm"
+            className="h-8 w-8"
             onClick={() => onPageChange(page)}
             aria-label={`Página ${page}`}
             aria-current={currentPage === page ? "page" : undefined}
@@ -94,24 +86,21 @@ const ProductPagination = ({
           </Button>
         ))}
         
+        {isMobile && (
+          <span className="text-xs font-medium px-2">
+            {currentPage} / {totalPages}
+          </span>
+        )}
+        
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
+          className="h-8 w-8"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           aria-label="Página siguiente"
         >
           <ChevronRight className="h-4 w-4" />
-        </Button>
-        
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onPageChange(totalPages)}
-          disabled={currentPage === totalPages}
-          aria-label="Última página"
-        >
-          <ChevronsRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
