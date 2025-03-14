@@ -65,5 +65,3 @@ export const extractCategories = (products: Product[]): string[] => {
   
   return Array.from(categories).sort();
 };
-
-export type { Product, ScrapeResult };
