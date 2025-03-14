@@ -4,6 +4,7 @@ import { type Product } from '@/utils/scraper';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 interface ProductDisplayProps {
   products: Product[];
@@ -69,6 +70,14 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
           }}
         >
           <div className="relative aspect-video overflow-hidden bg-muted/20">
+            {product.discount && (
+              <div className="absolute top-2 left-2 z-10">
+                <Badge variant="destructive" className="text-xs font-semibold">
+                  {product.discount}
+                </Badge>
+              </div>
+            )}
+            
             <Link to={`/product/${product.id}`}>
               {imageErrors[product.id] ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -88,26 +97,67 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
           
           <div className="p-4">
             <div className="flex items-start justify-between mb-2">
-              <div>
+              <div className="flex flex-col">
                 <span className="inline-block px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-md mb-2">
                   {product.category}
                 </span>
-                <h3 className="font-medium">{product.name}</h3>
+                <h3 className="font-medium line-clamp-2">{product.name}</h3>
+                {product.brand && (
+                  <span className="text-xs text-muted-foreground mt-1">
+                    {product.brand}
+                  </span>
+                )}
               </div>
-              <span className="text-sm font-semibold">{product.price}</span>
+              <div className="flex flex-col items-end">
+                {product.originalPrice && (
+                  <span className="text-xs text-muted-foreground line-through">
+                    {product.originalPrice}
+                  </span>
+                )}
+                <span className="text-sm font-semibold">{product.price}</span>
+                {product.stockStatus && (
+                  <span className={cn(
+                    "text-xs mt-1",
+                    product.stockStatus.toLowerCase().includes('stock') ? 
+                      "text-green-600 dark:text-green-400" : 
+                      "text-red-600 dark:text-red-400"
+                  )}>
+                    {product.stockStatus}
+                  </span>
+                )}
+              </div>
             </div>
             
             {product.description && (
               <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{product.description}</p>
             )}
             
-            <div className="mt-4">
+            {product.sku && (
+              <div className="mt-2">
+                <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>
+              </div>
+            )}
+            
+            {product.rating && (
+              <div className="flex items-center mt-2">
+                <span className="text-xs text-amber-500">★★★★★</span>
+                <span className="text-xs text-muted-foreground ml-1">{product.rating}</span>
+              </div>
+            )}
+            
+            <div className="mt-4 flex justify-between items-center">
               <Link 
                 to={`/product/${product.id}`}
                 className="text-sm text-primary hover:underline transition-colors duration-200"
               >
                 Ver detalles
               </Link>
+              
+              {product.additionalImages && product.additionalImages.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  +{product.additionalImages.length} imágenes
+                </span>
+              )}
             </div>
           </div>
         </div>
