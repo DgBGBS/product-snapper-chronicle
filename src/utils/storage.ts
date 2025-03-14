@@ -14,7 +14,7 @@ interface StorageResult {
 export const saveToGoogleSheets = async (products: Product[]): Promise<StorageResult> => {
   try {
     // This is a simulation since connecting to Google Sheets requires auth
-    console.log('Simulating saving to Google Sheets:', products.length, 'products');
+    console.log('Simulating saving to Google Sheets:', products.length, 'products from profesa.info/tienda');
     
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -47,9 +47,6 @@ export const setupScheduledTask = (
   
   // Convert minutes to milliseconds
   const intervalMs = intervalMinutes * 60 * 1000;
-  
-  // Run immediately
-  taskFn().catch(err => console.error('Error in scheduled task:', err));
   
   // Setup interval
   const intervalId = setInterval(() => {

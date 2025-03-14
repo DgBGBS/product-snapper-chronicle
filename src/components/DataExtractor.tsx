@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
@@ -19,9 +19,17 @@ const DataExtractor = ({
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const fetchingRef = useRef(false);
   
   // Function to fetch data
   const fetchData = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (fetchingRef.current) {
+      console.log('Fetch already in progress, skipping');
+      return;
+    }
+    
+    fetchingRef.current = true;
     setIsLoading(true);
     setProgress(20);
     
@@ -50,7 +58,7 @@ const DataExtractor = ({
         
         toast({
           title: "Datos actualizados",
-          description: `Se actualizaron ${result.products.length} productos de profesa.info`,
+          description: `Se actualizaron ${result.products.length} productos de profesa.info/tienda`,
         });
       } else {
         setProgress(100);
@@ -66,23 +74,32 @@ const DataExtractor = ({
     } finally {
       setIsLoading(false);
       setTimeout(() => setProgress(0), 1000);
+      fetchingRef.current = false;
     }
   }, [onDataFetched, toast]);
   
   // First load data fetch
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const initialFetch = async () => {
+      await fetchData();
+    };
+    
+    initialFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Setup scheduled task
   useEffect(() => {
+    console.log(`Setting up scheduled task to run every ${autoFetchInterval} minutes`);
     const cleanup = setupScheduledTask(
       fetchData,
       autoFetchInterval,
       true
     );
     
-    return cleanup;
+    return () => {
+      cleanup();
+    };
   }, [fetchData, autoFetchInterval]);
   
   return (
@@ -91,7 +108,7 @@ const DataExtractor = ({
         <div>
           <h2 className="text-lg font-medium">Extractor de Datos</h2>
           <p className="text-sm text-muted-foreground">
-            Extrae datos de productos desde <a href="https://profesa.info" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">profesa.info</a> cada {autoFetchInterval} minutos
+            Extrae datos de productos desde <a href="https://profesa.info/tienda" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">profesa.info/tienda</a> cada {autoFetchInterval} minutos
           </p>
         </div>
         
