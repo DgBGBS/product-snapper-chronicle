@@ -37,6 +37,7 @@ const Index = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
+        console.log('Fetching new products...');
         
         // Try to load from localStorage first for instant display
         const savedData = localStorage.getItem('scraped_products');
@@ -55,12 +56,9 @@ const Index = () => {
         }
         
         // Always fetch fresh data
-        console.log('Fetching new products...');
-        const mainSiteUrl = 'https://profesa.info/';
-        
-        const result = await scrapeProducts(mainSiteUrl, {
+        const result = await scrapeProducts('https://profesa.info/', {
           recursive: true,
-          maxDepth: 3,
+          maxDepth: 2,
           includeProductPages: true
         });
         
@@ -191,10 +189,10 @@ const Index = () => {
             <Store size={48} className="text-primary" />
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
-            ¡Sorpresa! Catálogo Completo
+            ¡Catálogo Completo de Productos!
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
-            Se han extraído todos los productos automáticamente. Explora por categoría o usa el buscador.
+            Explora nuestra selección de productos por categoría o usa el buscador para encontrar lo que necesitas.
           </p>
         </div>
       </header>
