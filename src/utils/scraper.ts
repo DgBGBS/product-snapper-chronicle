@@ -21,11 +21,11 @@ interface ScrapeResult {
  */
 export const scrapeProducts = async (): Promise<ScrapeResult> => {
   try {
-    // In a real implementation, this would use a server-side function to fetch the website
-    // For this demo, we're simulating the data
-    console.log('Simulating web scraping from profesa.info');
+    // En una implementación real, esto usaría una función del lado del servidor para obtener el sitio web
+    // Para esta demostración, estamos simulando los datos pero con la URL correcta
+    console.log('Simulando web scraping desde https://profesa.info');
 
-    // Generate more realistic mock data with better images
+    // Generar datos de muestra más realistas con mejores imágenes
     const mockProducts: Product[] = [
       {
         id: '1',
@@ -101,7 +101,7 @@ export const scrapeProducts = async (): Promise<ScrapeResult> => {
       },
     ];
 
-    // Simulate some processing time
+    // Simular algún tiempo de procesamiento
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     return {

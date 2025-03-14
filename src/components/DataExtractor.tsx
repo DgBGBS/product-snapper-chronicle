@@ -50,7 +50,7 @@ const DataExtractor = ({
         
         toast({
           title: "Datos actualizados",
-          description: `Se actualizaron ${result.products.length} productos`,
+          description: `Se actualizaron ${result.products.length} productos de profesa.info`,
         });
       } else {
         setProgress(100);
@@ -91,7 +91,7 @@ const DataExtractor = ({
         <div>
           <h2 className="text-lg font-medium">Extractor de Datos</h2>
           <p className="text-sm text-muted-foreground">
-            Extrae datos de productos cada {autoFetchInterval} minutos
+            Extrae datos de productos desde <a href="https://profesa.info" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">profesa.info</a> cada {autoFetchInterval} minutos
           </p>
         </div>
         
