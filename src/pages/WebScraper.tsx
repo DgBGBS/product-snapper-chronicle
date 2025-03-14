@@ -32,26 +32,39 @@ const WebScraper = () => {
     setProgress(10);
 
     try {
-      // Simular progreso mientras se está rastreando
+      // Crear un intervalo que actualice el progreso gradualmente hasta 85%
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
-          if (prev >= 90) {
+          if (prev >= 85) {
             clearInterval(progressInterval);
-            return 90;
+            return 85;
           }
           return prev + 5;
         });
-      }, 1000);
+      }, 800); // Reducimos la velocidad para evitar llegar al 90% demasiado rápido
 
-      // Ejecutar el rastreo
-      const result = await scrapeProducts(url, {
+      // Ejecutar el rastreo con timeout para evitar bloqueos indefinidos
+      const scrapingPromise = scrapeProducts(url, {
         recursive: true,
         maxDepth: 3,
         includeProductPages: true,
       });
+      
+      // Establecer un tiempo límite para el rastreo (3 minutos)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("El rastreo ha excedido el tiempo máximo permitido"));
+        }, 180000); // 3 minutos en milisegundos
+      });
+      
+      // Usar Promise.race para que se resuelva con el primero que termine
+      const result = await Promise.race([scrapingPromise, timeoutPromise]) as any;
 
+      // Limpiar el intervalo de progreso
       clearInterval(progressInterval);
-      setProgress(100);
+      
+      // Avanzar al 95% antes de procesar resultados
+      setProgress(95);
 
       if (result.success) {
         // Guardar los resultados en localStorage para que la página de administración los utilice
@@ -67,6 +80,9 @@ const WebScraper = () => {
           localStorage.setItem("contact_info", JSON.stringify(result.contactInfo));
         }
 
+        // Completar el progreso al 100%
+        setProgress(100);
+
         toast({
           title: "Rastreo completado",
           description: `Se encontraron ${result.products.length} productos en ${url}`,
@@ -77,10 +93,15 @@ const WebScraper = () => {
           navigate("/admin");
         }, 1000);
       } else {
+        setProgress(100); // Completar el progreso aunque haya error
         throw new Error(result.error || "Error desconocido durante el rastreo");
       }
     } catch (error) {
       console.error("Error al rastrear la web:", error);
+      
+      // Asegurar que el progreso llegue al 100% incluso con error
+      setProgress(100);
+      
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Error desconocido durante el rastreo",
@@ -143,12 +164,16 @@ const WebScraper = () => {
             {isLoading && (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span>Rastreando productos...</span>
+                  <span>{progress < 100 ? "Rastreando productos..." : "Procesando resultados..."}</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-2" />
                 <p className="text-xs text-muted-foreground">
-                  Este proceso puede tardar varios minutos dependiendo del tamaño del sitio web.
+                  {progress < 85 
+                    ? "Analizando sitio web y extrayendo datos de productos..."
+                    : progress < 95 
+                      ? "Procesando datos encontrados..."
+                      : "Finalizando el rastreo, por favor espere..."}
                 </p>
               </div>
             )}
