@@ -47,29 +47,30 @@ const ProductPagination = ({
   if (totalPages <= 1) return null;
   
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 select-none">
-      <div className="text-sm text-muted-foreground mb-2 sm:mb-0">
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-3 select-none bg-background/60 backdrop-blur-sm rounded-lg p-3 border border-border/40 shadow-sm">
+      <div className="text-sm text-muted-foreground">
         {totalItems ? (
-          <span className="text-xs">
-            {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} de {totalItems}
+          <span className="font-medium">
+            {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} <span className="text-muted-foreground/70">de</span> {totalItems}
           </span>
         ) : (
-          <span className="text-xs">
-            Página {currentPage} de {totalPages}
+          <span className="font-medium">
+            Página {currentPage} <span className="text-muted-foreground/70">de</span> {totalPages}
           </span>
         )}
       </div>
       
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center gap-1">
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-full shadow-sm hover:shadow transition-all"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           aria-label="Página anterior"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+          <span className="hidden sm:inline text-xs">Anterior</span>
         </Button>
         
         {!isMobile && visiblePages.map(page => (
@@ -77,7 +78,7 @@ const ProductPagination = ({
             key={page}
             variant={currentPage === page ? "default" : "ghost"}
             size="sm"
-            className="h-8 w-8"
+            className={`h-8 w-8 rounded-full ${currentPage === page ? 'shadow-md' : 'hover:shadow-sm'} transition-all`}
             onClick={() => onPageChange(page)}
             aria-label={`Página ${page}`}
             aria-current={currentPage === page ? "page" : undefined}
@@ -87,20 +88,21 @@ const ProductPagination = ({
         ))}
         
         {isMobile && (
-          <span className="text-xs font-medium px-2">
+          <span className="text-sm font-medium px-3 py-1 rounded-full bg-muted/60">
             {currentPage} / {totalPages}
           </span>
         )}
         
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-full shadow-sm hover:shadow transition-all"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           aria-label="Página siguiente"
         >
-          <ChevronRight className="h-4 w-4" />
+          <span className="hidden sm:inline text-xs">Siguiente</span>
+          <ChevronRight className="h-3.5 w-3.5 ml-1" />
         </Button>
       </div>
     </div>

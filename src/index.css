@@ -133,6 +133,22 @@
   .text-balance {
     text-wrap: balance;
   }
+  
+  .elegant-input {
+    @apply bg-white/80 dark:bg-black/10 backdrop-blur-sm border border-border/50 rounded-lg px-4 py-2 shadow-sm focus:ring-2 ring-primary/20 transition-all duration-200;
+  }
+  
+  .elegant-button {
+    @apply rounded-lg px-4 py-2 font-medium shadow-sm hover:shadow transition-all duration-200;
+  }
+  
+  .elegant-card {
+    @apply rounded-xl backdrop-blur-sm border border-border/60 shadow-sm hover:shadow-md transition-all duration-300;
+  }
+  
+  .subtle-bg {
+    @apply bg-background/60 backdrop-blur-sm;
+  }
 }
 
 @layer utilities {
@@ -146,5 +162,13 @@
   
   .animation-delay-600 {
     animation-delay: 600ms;
+  }
+  
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent;
   }
 }

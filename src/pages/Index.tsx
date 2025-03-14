@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { type Product } from '@/utils/scraper';
 import { extractCategories, scrapeProducts } from '@/utils/scraper';
@@ -11,14 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 import CategoryNavigation from '@/components/CategoryNavigation';
 import ProductDisplay from '@/components/ProductDisplay';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import ProductPagination from '@/components/ProductPagination';
 
 const Index = () => {
   const { toast } = useToast();
@@ -30,16 +22,14 @@ const Index = () => {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 12; // Aumentado de 9 a 12 para mostrar más productos
+  const productsPerPage = 12;
   
-  // Obtener datos al montar el componente
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
         console.log('Obteniendo nuevos productos...');
         
-        // Intentar cargar desde localStorage primero para mostrar instantáneamente
         const savedData = localStorage.getItem('scraped_products');
         const savedTimestamp = localStorage.getItem('scraped_timestamp');
         
@@ -55,23 +45,22 @@ const Index = () => {
           }
         }
         
-        // Siempre obtener datos nuevos
         const result = await scrapeProducts('https://profesa.info/', {
           recursive: true,
           maxDepth: 2,
-          includeProductPages: true
+          includeProductPages: true,
+          maxProducts: 20000,
+          maxPagesToVisit: 500
         });
         
         if (result.success) {
           console.log(`Obtenidos con éxito ${result.products.length} productos`);
           
-          // Solo actualizar si encontramos productos
           if (result.products.length > 0) {
             setProducts(result.products);
             setCategories(extractCategories(result.products));
             setLastUpdated(result.lastUpdated);
             
-            // Guardar en localStorage para persistencia
             localStorage.setItem('scraped_products', JSON.stringify(result.products));
             localStorage.setItem('scraped_timestamp', result.lastUpdated);
             
@@ -80,7 +69,6 @@ const Index = () => {
               description: `Se han encontrado ${result.products.length} productos en ${result.products.length > 0 ? extractCategories(result.products).length : 0} categorías.`,
             });
           } else if (!savedData) {
-            // Solo mostrar error si no tenemos datos en caché
             toast({
               title: "No se encontraron productos",
               description: "Ocurrió un error al extraer datos. Intente más tarde.",
@@ -114,7 +102,6 @@ const Index = () => {
     fetchData();
   }, [toast]);
   
-  // Filtrar productos por categoría y consulta de búsqueda
   const filteredProducts = products
     .filter(product => !activeCategory || product.category === activeCategory)
     .filter(product => {
@@ -129,7 +116,6 @@ const Index = () => {
       );
     });
   
-  // Lógica de paginación
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
   const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
@@ -140,7 +126,6 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
-  // Generar números de página para paginación
   const pageNumbers = [];
   const maxPagesToShow = 5;
   
@@ -162,14 +147,12 @@ const Index = () => {
     }
   }
   
-  // Animación al montar
   useEffect(() => {
     setMounted(true);
   }, []);
   
   return (
     <div className="min-h-screen pb-12">
-      {/* Sección de encabezado */}
       <header 
         className={cn(
           "relative flex flex-col items-center justify-center text-center py-12 px-6",
@@ -188,7 +171,7 @@ const Index = () => {
           <div className="mx-auto flex justify-center mb-4">
             <Store size={48} className="text-primary" />
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gradient">
             ¡Catálogo Completo de Productos!
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
@@ -197,12 +180,10 @@ const Index = () => {
         </div>
       </header>
       
-      {/* Contenido principal */}
       <main className="container max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in">
-        {/* Sección de búsqueda y filtros */}
         <div 
           className={cn(
-            "mb-6 transition-all duration-700 transform",
+            "mb-6 transition-all duration-700 transform elegant-card p-4",
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           )}
         >
@@ -214,9 +195,9 @@ const Index = () => {
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setCurrentPage(1); // Volver a la primera página al buscar
+                  setCurrentPage(1);
                 }}
-                className="pl-10"
+                className="pl-10 elegant-input"
               />
             </div>
             <div className="text-sm text-muted-foreground flex items-center">
@@ -225,7 +206,6 @@ const Index = () => {
           </div>
         </div>
         
-        {/* Sección de productos */}
         <section 
           className={cn(
             "animate-slide-in",
@@ -233,10 +213,10 @@ const Index = () => {
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           )}
         >
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 elegant-card p-4">
             <div className="flex items-center gap-2">
               <Store size={24} className="text-primary" />
-              <h2 className="text-2xl font-bold">Productos</h2>
+              <h2 className="text-2xl font-bold text-gradient">Productos</h2>
               {isLoading && (
                 <Loader2 className="h-4 w-4 animate-spin ml-2" />
               )}
@@ -248,56 +228,26 @@ const Index = () => {
             )}
           </div>
           
-          {/* Navegación de categorías */}
           <CategoryNavigation 
             categories={categories}
             activeCategory={activeCategory}
             onSelectCategory={setActiveCategory}
           />
           
-          {/* Mostrar productos */}
           <ProductDisplay products={currentProducts} isLoading={isLoading} />
           
-          {/* Paginación */}
           {!isLoading && filteredProducts.length > 0 && (
-            <Pagination className="my-8">
-              <PaginationContent>
-                {currentPage > 1 && (
-                  <PaginationItem>
-                    <PaginationPrevious 
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      className="cursor-pointer"
-                    />
-                  </PaginationItem>
-                )}
-                
-                {pageNumbers.map(number => (
-                  <PaginationItem key={number}>
-                    <PaginationLink 
-                      isActive={number === currentPage}
-                      onClick={() => handlePageChange(number)}
-                      className="cursor-pointer"
-                    >
-                      {number}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-                
-                {currentPage < totalPages && (
-                  <PaginationItem>
-                    <PaginationNext 
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      className="cursor-pointer"
-                    />
-                  </PaginationItem>
-                )}
-              </PaginationContent>
-            </Pagination>
+            <ProductPagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              totalItems={filteredProducts.length}
+              itemsPerPage={productsPerPage}
+            />
           )}
           
-          {/* Mensaje de no resultados */}
           {!isLoading && filteredProducts.length === 0 && searchQuery && (
-            <div className="text-center py-12">
+            <div className="text-center py-12 elegant-card p-8">
               <h3 className="text-lg font-medium mb-2">No se encontraron productos</h3>
               <p className="text-muted-foreground">
                 No hay resultados para "{searchQuery}". Por favor, intenta con otra búsqueda.
