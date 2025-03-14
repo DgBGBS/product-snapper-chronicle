@@ -6,19 +6,38 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { ArrowRight, Globe, Info } from "lucide-react";
+import { ArrowRight, Globe, Info, AlertTriangle } from "lucide-react";
 import { scrapeProducts } from "@/utils/scraper";
 import { toast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const WebScraper = () => {
   const [url, setUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Función para validar URL
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const resetState = () => {
+    setProgress(0);
+    setErrorMessage(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    resetState();
 
+    // Validar URL
     if (!url) {
       toast({
         title: "Error",
@@ -28,23 +47,62 @@ const WebScraper = () => {
       return;
     }
 
+    // Asegurar que la URL tiene formato correcto
+    let formattedUrl = url;
+    if (!isValidUrl(url)) {
+      if (!url.startsWith('http')) {
+        formattedUrl = `https://${url}`;
+        if (!isValidUrl(formattedUrl)) {
+          toast({
+            title: "Error",
+            description: "La URL introducida no es válida",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "La URL introducida no es válida",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsLoading(true);
     setProgress(10);
 
+    // Crear dos controladores de intervalos separados para mayor fiabilidad
+    let progressInterval: NodeJS.Timeout | null = null;
+    let networkCheckInterval: NodeJS.Timeout | null = null;
+    
     try {
-      // Crear un intervalo que actualice el progreso gradualmente hasta 85%
-      const progressInterval = setInterval(() => {
+      // Control de progreso principal
+      progressInterval = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 85) {
-            clearInterval(progressInterval);
+            clearInterval(progressInterval!);
             return 85;
           }
-          return prev + 5;
+          return prev + 3;
         });
-      }, 800); // Reducimos la velocidad para evitar llegar al 90% demasiado rápido
+      }, 1000);
+
+      // Comprobación periódica de conectividad
+      let consecutiveNetworkChecks = 0;
+      networkCheckInterval = setInterval(() => {
+        fetch('https://www.google.com', { mode: 'no-cors', cache: 'no-store' })
+          .catch(() => {
+            consecutiveNetworkChecks++;
+            if (consecutiveNetworkChecks >= 3) {
+              setErrorMessage("Se detectaron problemas de conexión. Es posible que los resultados sean limitados.");
+            }
+          });
+      }, 10000);
 
       // Ejecutar el rastreo con timeout para evitar bloqueos indefinidos
-      const scrapingPromise = scrapeProducts(url, {
+      const scrapingPromise = scrapeProducts(formattedUrl, {
         recursive: true,
         maxDepth: 3,
         includeProductPages: true,
@@ -53,24 +111,25 @@ const WebScraper = () => {
       // Establecer un tiempo límite para el rastreo (3 minutos)
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
-          reject(new Error("El rastreo ha excedido el tiempo máximo permitido"));
+          reject(new Error("El rastreo ha excedido el tiempo máximo permitido (3 minutos)"));
         }, 180000); // 3 minutos en milisegundos
       });
       
       // Usar Promise.race para que se resuelva con el primero que termine
       const result = await Promise.race([scrapingPromise, timeoutPromise]) as any;
 
-      // Limpiar el intervalo de progreso
-      clearInterval(progressInterval);
+      // Limpiar los intervalos
+      if (progressInterval) clearInterval(progressInterval);
+      if (networkCheckInterval) clearInterval(networkCheckInterval);
       
       // Avanzar al 95% antes de procesar resultados
       setProgress(95);
 
       if (result.success) {
         // Guardar los resultados en localStorage para que la página de administración los utilice
-        localStorage.setItem("scraped_products", JSON.stringify(result.products));
-        localStorage.setItem("scraped_timestamp", result.lastUpdated);
-        localStorage.setItem("scraped_url", url);
+        localStorage.setItem("scraped_products", JSON.stringify(result.products || []));
+        localStorage.setItem("scraped_timestamp", result.lastUpdated || new Date().toISOString());
+        localStorage.setItem("scraped_url", formattedUrl);
         
         if (result.storeInfo) {
           localStorage.setItem("store_info", JSON.stringify(result.storeInfo));
@@ -83,10 +142,20 @@ const WebScraper = () => {
         // Completar el progreso al 100%
         setProgress(100);
 
-        toast({
-          title: "Rastreo completado",
-          description: `Se encontraron ${result.products.length} productos en ${url}`,
-        });
+        const productsCount = result.products?.length || 0;
+        
+        if (productsCount > 0) {
+          toast({
+            title: "Rastreo completado",
+            description: `Se encontraron ${productsCount} productos en ${formattedUrl}`,
+          });
+        } else {
+          toast({
+            title: "Rastreo completado",
+            description: "No se encontraron productos. Intenta con otra URL o sección de la tienda.",
+            variant: "destructive",
+          });
+        }
 
         // Navegar a la página de administración
         setTimeout(() => {
@@ -99,11 +168,15 @@ const WebScraper = () => {
     } catch (error) {
       console.error("Error al rastrear la web:", error);
       
+      // Limpiar los intervalos si aún existen
+      if (progressInterval) clearInterval(progressInterval);
+      if (networkCheckInterval) clearInterval(networkCheckInterval);
+      
       // Asegurar que el progreso llegue al 100% incluso con error
       setProgress(100);
       
       toast({
-        title: "Error",
+        title: "Error en el rastreo",
         description: error instanceof Error ? error.message : "Error desconocido durante el rastreo",
         variant: "destructive",
       });
@@ -126,6 +199,13 @@ const WebScraper = () => {
         </CardHeader>
         
         <CardContent>
+          {errorMessage && (
+            <Alert variant="warning" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -151,7 +231,7 @@ const WebScraper = () => {
               </div>
               <Input
                 id="url"
-                type="url"
+                type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://ejemplo.com/tienda"
