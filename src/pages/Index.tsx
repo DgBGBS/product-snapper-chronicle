@@ -1,16 +1,15 @@
 
 import { useState, useEffect } from 'react';
 import { type Product } from '@/utils/scraper';
-import { extractCategories } from '@/utils/scraper';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { extractCategories, scrapeProducts } from '@/utils/scraper';
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { cn } from '@/lib/utils';
-import { Store, Database, RefreshCw, Search } from 'lucide-react';
+import { Store, Search } from 'lucide-react';
 
 import CategoryNavigation from '@/components/CategoryNavigation';
 import ProductDisplay from '@/components/ProductDisplay';
-import DataExtractor from '@/components/DataExtractor';
 import {
   Pagination,
   PaginationContent,
@@ -31,15 +30,39 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 9;
   
-  // Handle data fetched from extractor
-  const handleDataFetched = (data: Product[], updated: string) => {
-    console.log('Index: Data fetched:', data.length, 'products');
-    setProducts(data);
-    setCategories(extractCategories(data));
-    setLastUpdated(updated);
-    setIsLoading(false);
-    setCurrentPage(1); // Reset to first page on new data
-  };
+  // Fetch data directly from the new URL
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Fetching products from categoria-producto URL');
+        const result = await scrapeProducts('https://profesa.info/categoria-producto/', {
+          recursive: true,
+          maxDepth: 2,
+          includeProductPages: true
+        });
+        
+        if (result.success) {
+          console.log(`Successfully fetched ${result.products.length} products`);
+          setProducts(result.products);
+          setCategories(extractCategories(result.products));
+          setLastUpdated(result.lastUpdated);
+          
+          // Save to localStorage for persistence
+          localStorage.setItem('scraped_products', JSON.stringify(result.products));
+          localStorage.setItem('scraped_timestamp', result.lastUpdated);
+        } else {
+          console.error('Error fetching products:', result.error);
+        }
+      } catch (error) {
+        console.error('Error in data fetching:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
   
   // Filter products by category and search query
   const filteredProducts = products
@@ -116,41 +139,16 @@ const Index = () => {
             <Store size={48} className="text-primary" />
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
-            Extractor y Organizador de Productos
+            Catálogo de Productos
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
-            Extrae automáticamente datos de productos de profesa.info/tienda, 
-            los organiza por categorías y los guarda en Google Sheets
+            Explora nuestra selección de productos profesionales
           </p>
         </div>
       </header>
       
       {/* Main content */}
       <main className="container max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in">
-        {/* Data extraction card */}
-        <Card 
-          className={cn(
-            "mb-8 overflow-hidden glass-card shadow-soft",
-            "transition-all duration-700 transform border border-border/40",
-            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          )}
-        >
-          <CardHeader className="p-6 flex flex-row items-center space-y-0 gap-2">
-            <Database className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle>Panel de Control</CardTitle>
-              <CardDescription>Extracción y gestión de datos de productos</CardDescription>
-            </div>
-          </CardHeader>
-          <Separator />
-          <CardContent className="p-6">
-            <DataExtractor 
-              onDataFetched={handleDataFetched} 
-              autoFetchInterval={1} 
-            />
-          </CardContent>
-        </Card>
-        
         {/* Search and filter section */}
         <div 
           className={cn(
@@ -173,12 +171,6 @@ const Index = () => {
             </div>
             <div className="text-sm text-muted-foreground flex items-center">
               <span>Mostrando {filteredProducts.length} de {products.length} productos</span>
-              {lastUpdated && (
-                <span className="ml-4 flex items-center">
-                  <RefreshCw size={14} className="mr-1" />
-                  <span>Actualizado: {new Date(lastUpdated).toLocaleString()}</span>
-                </span>
-              )}
             </div>
           </div>
         </div>

@@ -48,7 +48,7 @@ export interface ScrapeResult {
  * Fetches and parses product data from the target website
  * with support for recursive subpage scraping
  */
-export const scrapeProducts = async (url: string = 'https://profesa.info/tienda', options = { 
+export const scrapeProducts = async (url: string = 'https://profesa.info/categoria-producto/', options = { 
   recursive: true,
   maxDepth: 2,
   includeProductPages: true
@@ -151,6 +151,7 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
               
               // Check if it's a category page
               const isCategoryPage = normalizedLink.includes('/categoria/') || 
+                                normalizedLink.includes('/categoria-producto/') || 
                                 normalizedLink.includes('/category/') || 
                                 normalizedLink.includes('/tienda/') ||
                                 normalizedLink.includes('/shop/') ||
@@ -207,7 +208,7 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
     // If no products found or very few, try direct scraping of the main product page
     if (finalProducts.length < 3 && options.includeProductPages) {
       console.log("Few or no products found via recursive crawling. Trying direct product page.");
-      const productPageUrl = `${baseUrl.replace(/\/tienda\/?$/, '')}/producto/`;
+      const productPageUrl = `${baseUrl.replace(/\/categoria-producto\/?$/, '')}/producto/`;
       
       try {
         const result = await FirecrawlService.crawlWebsite(productPageUrl);
@@ -240,7 +241,7 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
     if (finalProducts.length === 0) {
       try {
         console.log("Trying alternative scraping approach with /productos/ URL");
-        const productosUrl = `${baseUrl.replace(/\/tienda\/?$/, '')}/productos/`;
+        const productosUrl = `${baseUrl.replace(/\/categoria-producto\/?$/, '')}/productos/`;
         const result = await FirecrawlService.crawlWebsite(productosUrl);
         
         if (result.success && result.data?.data?.length > 0) {
