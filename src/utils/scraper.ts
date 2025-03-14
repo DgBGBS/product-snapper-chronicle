@@ -123,8 +123,13 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
           const links = result.data?.links || [];
           
           // Filter links to follow
-          const validLinks = links.filter((link: string) => {
+          const validLinks = links.filter((link: any) => {
             try {
+              // Skip if link is not a string
+              if (typeof link !== 'string') {
+                return false;
+              }
+              
               // Ensure link is valid
               const linkUrl = new URL(link);
               
@@ -196,9 +201,9 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
     
     console.log(`Completed crawling with ${visitedUrls.size} pages visited. Found ${finalProducts.length} unique products.`);
     
-    // If no products found, try direct scraping of the main product page
-    if (finalProducts.length === 0 && options.includeProductPages) {
-      console.log("No products found via recursive crawling. Trying direct product page.");
+    // If no products found or very few, try direct scraping of the main product page
+    if (finalProducts.length < 3 && options.includeProductPages) {
+      console.log("Few or no products found via recursive crawling. Trying direct product page.");
       const productPageUrl = `${baseUrl.replace(/\/tienda\/?$/, '')}/producto/`;
       
       try {
@@ -214,10 +219,41 @@ export const scrapeProducts = async (url: string = 'https://profesa.info/tienda'
             siteSource: baseUrlObj.hostname
           }));
           
-          finalProducts.push(...directProducts);
+          // Add only products that don't already exist
+          const existingIds = new Set(finalProducts.map(p => p.id));
+          const newProducts = directProducts.filter(p => !existingIds.has(p.id));
+          
+          if (newProducts.length > 0) {
+            console.log(`Adding ${newProducts.length} new products from direct scraping`);
+            finalProducts.push(...newProducts);
+          }
         }
       } catch (error) {
         console.error(`Error with direct product page scraping:`, error);
+      }
+    }
+    
+    // Try another backup approach if still no products
+    if (finalProducts.length === 0) {
+      try {
+        console.log("Trying alternative scraping approach with /productos/ URL");
+        const productosUrl = `${baseUrl.replace(/\/tienda\/?$/, '')}/productos/`;
+        const result = await FirecrawlService.crawlWebsite(productosUrl);
+        
+        if (result.success && result.data?.data?.length > 0) {
+          console.log(`Found ${result.data.data.length} products on ${productosUrl}`);
+          
+          const backupProducts = result.data.data.map((product: Product) => ({
+            ...product,
+            id: product.id || `prod-${Math.random().toString(36).substring(2, 9)}`,
+            url: product.url || productosUrl,
+            siteSource: baseUrlObj.hostname
+          }));
+          
+          finalProducts.push(...backupProducts);
+        }
+      } catch (error) {
+        console.error("Error with backup scraping approach:", error);
       }
     }
     
