@@ -33,7 +33,7 @@ const ProductDisplay = ({ products, isLoading = false }: ProductDisplayProps) =>
     );
   }
 
-  if (products.length === 0) {
+  if (!products || products.length === 0) {
     return (
       <div className="flex items-center justify-center h-72 w-full">
         <div className="text-center">

@@ -44,6 +44,8 @@ const DataExtractor = ({
         
         // Update state
         setLastUpdated(result.lastUpdated);
+        
+        // Pass data to parent component
         onDataFetched(result.products, result.lastUpdated);
         
         toast({
@@ -66,6 +68,11 @@ const DataExtractor = ({
       setTimeout(() => setProgress(0), 1000);
     }
   }, [onDataFetched, toast]);
+  
+  // First load data fetch
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
   
   // Setup scheduled task
   useEffect(() => {

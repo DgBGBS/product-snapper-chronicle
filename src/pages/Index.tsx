@@ -20,6 +20,7 @@ const Index = () => {
   
   // Handle data fetched from extractor
   const handleDataFetched = (data: Product[], updated: string) => {
+    console.log('Data fetched:', data.length, 'products');
     setProducts(data);
     setCategories(extractCategories(data));
     setLastUpdated(updated);

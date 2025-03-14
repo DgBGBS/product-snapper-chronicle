@@ -25,55 +25,79 @@ export const scrapeProducts = async (): Promise<ScrapeResult> => {
     // For this demo, we're simulating the data
     console.log('Simulating web scraping from profesa.info');
 
-    // This would normally come from an actual scraping operation
+    // Generate more realistic mock data with better images
     const mockProducts: Product[] = [
       {
         id: '1',
-        name: 'Producto 1',
-        price: '$19.99',
+        name: 'Laptop HP Pavilion',
+        price: '$19,999',
         category: 'Electrónicos',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto1',
+        description: 'Laptop con procesador Core i5, 8GB RAM, 512GB SSD'
       },
       {
         id: '2',
-        name: 'Producto 2',
-        price: '$29.99',
+        name: 'Zapatillas Nike Air',
+        price: '$2,999',
         category: 'Ropa',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto2',
+        description: 'Zapatillas deportivas con tecnología de amortiguación'
       },
       {
         id: '3',
-        name: 'Producto 3',
-        price: '$9.99',
+        name: 'Sartén Antiadherente',
+        price: '$999',
         category: 'Hogar',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1622428856523-83cd2cb033df?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto3',
+        description: 'Sartén de 28cm con recubrimiento antiadherente de calidad'
       },
       {
         id: '4',
-        name: 'Producto 4',
-        price: '$39.99',
+        name: 'Auriculares Bluetooth',
+        price: '$3,999',
         category: 'Electrónicos',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto4',
+        description: 'Auriculares inalámbricos con cancelación de ruido'
       },
       {
         id: '5',
-        name: 'Producto 5',
-        price: '$49.99',
+        name: 'Chaqueta de Cuero',
+        price: '$4,999',
         category: 'Ropa',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto5',
+        description: 'Chaqueta de cuero genuino con forro interior'
       },
       {
         id: '6',
-        name: 'Producto 6',
-        price: '$15.99',
+        name: 'Juego de Ollas',
+        price: '$1,599',
         category: 'Hogar',
-        imageUrl: 'https://via.placeholder.com/150',
+        imageUrl: 'https://images.unsplash.com/photo-1584990347449-a5f503f30c6f?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
         url: 'https://profesa.info/producto6',
+        description: 'Juego de 5 ollas de acero inoxidable con tapas de vidrio'
+      },
+      {
+        id: '7',
+        name: 'Smartphone Samsung',
+        price: '$12,999',
+        category: 'Electrónicos',
+        imageUrl: 'https://images.unsplash.com/photo-1578598336057-fa3c1e4403f9?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
+        url: 'https://profesa.info/producto7',
+        description: 'Smartphone con pantalla AMOLED, 128GB de almacenamiento'
+      },
+      {
+        id: '8',
+        name: 'Reloj Deportivo',
+        price: '$1,899',
+        category: 'Accesorios',
+        imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
+        url: 'https://profesa.info/producto8',
+        description: 'Reloj resistente al agua con monitor de ritmo cardíaco'
       },
     ];
 
