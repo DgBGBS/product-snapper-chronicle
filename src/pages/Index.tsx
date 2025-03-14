@@ -20,7 +20,7 @@ const Index = () => {
   
   // Handle data fetched from extractor
   const handleDataFetched = (data: Product[], updated: string) => {
-    console.log('Data fetched:', data.length, 'products');
+    console.log('Index: Data fetched:', data.length, 'products');
     setProducts(data);
     setCategories(extractCategories(data));
     setLastUpdated(updated);
@@ -59,7 +59,7 @@ const Index = () => {
             Extractor y Organizador de Productos
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
-            Extrae automáticamente datos de productos de profesa.info, 
+            Extrae automáticamente datos de productos de profesa.info/tienda, 
             los organiza por categorías y los guarda en Google Sheets
           </p>
         </div>
@@ -80,7 +80,10 @@ const Index = () => {
           </CardHeader>
           <Separator />
           <CardContent className="p-6">
-            <DataExtractor onDataFetched={handleDataFetched} autoFetchInterval={30} />
+            <DataExtractor 
+              onDataFetched={handleDataFetched} 
+              autoFetchInterval={30} 
+            />
           </CardContent>
         </Card>
         

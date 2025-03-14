@@ -54,6 +54,7 @@ const DataExtractor = ({
         setLastUpdated(result.lastUpdated);
         
         // Pass data to parent component
+        console.log('DataExtractor: Passing', result.products.length, 'products to parent');
         onDataFetched(result.products, result.lastUpdated);
         
         toast({
