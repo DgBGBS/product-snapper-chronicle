@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,13 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { ArrowRight, Globe, Info, AlertTriangle } from "lucide-react";
+import { ArrowRight, Globe, Info, AlertTriangle, Lock, User } from "lucide-react";
 import { scrapeProducts } from "@/utils/scraper";
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const WebScraper = () => {
   const [url, setUrl] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [requiresAuth, setRequiresAuth] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -41,6 +47,15 @@ const WebScraper = () => {
       toast({
         title: "Error",
         description: "Por favor, introduce una URL válida",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (requiresAuth && (!username || !password)) {
+      toast({
+        title: "Error",
+        description: "Por favor, introduce usuario y contraseña para sitios protegidos",
         variant: "destructive",
       });
       return;
@@ -140,12 +155,16 @@ const WebScraper = () => {
         if (globalTimeout) clearTimeout(globalTimeout);
       };
 
+      // Añadir las credenciales a las opciones de rastreo si se requiere autenticación
+      const authOptions = requiresAuth ? { username, password } : undefined;
+
       const scrapingPromise = scrapeProducts(formattedUrl, {
         recursive: true,
         maxDepth: 3,
         includeProductPages: true,
         maxProducts: 15000,
-        maxPagesToVisit: 500
+        maxPagesToVisit: 500,
+        auth: authOptions // Pasar las credenciales
       });
       
       const timeoutPromise = new Promise((_, reject) => {
@@ -171,6 +190,19 @@ const WebScraper = () => {
         
         if (result.contactInfo) {
           localStorage.setItem("contact_info", JSON.stringify(result.contactInfo));
+        }
+
+        // Guardar credenciales si se usaron
+        if (requiresAuth) {
+          localStorage.setItem("store_auth_required", "true");
+          // Nota: En una aplicación real, considera usar un almacenamiento más seguro
+          localStorage.setItem("store_username", username);
+          // No almacenar la contraseña en texto plano en producción
+          localStorage.setItem("store_password", btoa(password)); // Codificación básica
+        } else {
+          localStorage.removeItem("store_auth_required");
+          localStorage.removeItem("store_username");
+          localStorage.removeItem("store_password");
         }
 
         setProgress(100);
@@ -286,6 +318,56 @@ const WebScraper = () => {
                 disabled={isLoading}
               />
             </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <Switch 
+                id="requires-auth" 
+                checked={requiresAuth}
+                onCheckedChange={setRequiresAuth}
+                disabled={isLoading}
+              />
+              <Label htmlFor="requires-auth" className="flex items-center gap-1.5">
+                <Lock className="h-4 w-4" />
+                Sitio protegido con contraseña
+              </Label>
+            </div>
+
+            {requiresAuth && (
+              <div className="space-y-4 pt-2 bg-muted/30 p-4 rounded-md border">
+                <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm font-medium flex items-center gap-1.5">
+                    <User className="h-4 w-4" />
+                    Usuario
+                  </label>
+                  <Input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Nombre de usuario"
+                    disabled={isLoading || !requiresAuth}
+                    required={requiresAuth}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium flex items-center gap-1.5">
+                    <Lock className="h-4 w-4" />
+                    Contraseña
+                  </label>
+                  <Input
+                    id="password"
+                    type="password"
+                    showPasswordToggle
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Contraseña"
+                    disabled={isLoading || !requiresAuth}
+                    required={requiresAuth}
+                  />
+                </div>
+              </div>
+            )}
 
             {isLoading && (
               <div className="space-y-2">

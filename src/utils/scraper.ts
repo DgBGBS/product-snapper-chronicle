@@ -35,6 +35,18 @@ export interface ContactInfo {
   address?: string;
 }
 
+export interface ScrapeOptions {
+  recursive: boolean;
+  maxDepth: number;
+  includeProductPages: boolean;
+  maxProducts: number;
+  maxPagesToVisit: number;
+  auth?: {
+    username: string;
+    password: string;
+  };
+}
+
 export interface ScrapeResult {
   success: boolean;
   error?: string;
@@ -71,12 +83,13 @@ const CORS_PROXIES = [
  * Extrae y analiza datos de productos del sitio web objetivo
  * con soporte para rastreo recursivo de subpáginas
  */
-export const scrapeProducts = async (url: string, options = { 
+export const scrapeProducts = async (url: string, options: ScrapeOptions = { 
   recursive: true,
   maxDepth: 2,
   includeProductPages: true,
-  maxProducts: 15000, // Aumentado para capturar más productos
-  maxPagesToVisit: 500 // Aumentado para visitar más páginas
+  maxProducts: 15000,
+  maxPagesToVisit: 500,
+  auth: undefined
 }): Promise<ScrapeResult> => {
   try {
     console.log(`Iniciando rastreo web desde ${url} con opciones:`, options);
@@ -200,7 +213,18 @@ export const scrapeProducts = async (url: string, options = {
           }, 60000); // 60 segundos de timeout por página, aumentado para permitir más tiempo
         });
         
-        const crawlPromise = FirecrawlService.crawlWebsite(pageUrl);
+        // Crear opciones de rastreo con autenticación si se proporcionaron credenciales
+        const crawlOptions: any = {};
+        
+        if (options.auth) {
+          crawlOptions.auth = {
+            username: options.auth.username,
+            password: options.auth.password
+          };
+          console.log(`Usando autenticación para acceder a ${pageUrl}`);
+        }
+        
+        const crawlPromise = FirecrawlService.crawlWebsite(pageUrl, crawlOptions);
         const result = await Promise.race([crawlPromise, timeoutPromise]);
         
         if (!result.success) {
@@ -550,9 +574,6 @@ export const scrapeProducts = async (url: string, options = {
   }
 };
 
-/**
- * Extraer categorías de la lista de productos
- */
 export const extractCategories = (products: Product[]): string[] => {
   const categories = new Set<string>();
   
