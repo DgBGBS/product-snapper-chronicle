@@ -86,6 +86,16 @@ const AdminPanel = () => {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
     
+    // Ordenar productos: primero los que tienen imagen, después los que no
+    filtered.sort((a, b) => {
+      const aHasImage = Boolean(a.imageUrl);
+      const bHasImage = Boolean(b.imageUrl);
+      
+      if (aHasImage && !bHasImage) return -1;
+      if (!aHasImage && bHasImage) return 1;
+      return 0;
+    });
+    
     setFilteredProducts(filtered);
     setCurrentPage(1); // Resetear a la primera página
   }, [searchQuery, selectedCategory, products]);
