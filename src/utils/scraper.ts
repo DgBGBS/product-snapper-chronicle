@@ -5,6 +5,8 @@ export interface Product {
   name: string;
   price: string;
   category: string;
+  subcategory?: string;
+  path?: string;
   imageUrl: string;
   url: string;
   description?: string;
@@ -31,6 +33,7 @@ export interface StoreInfo {
   name: string;
   url: string;
   categories: string[];
+  subcategories?: Record<string, string[]>;
   logo: string;
   description: string;
 }
@@ -48,6 +51,7 @@ export interface ScrapeOptions {
   maxProducts: number;
   maxPagesToVisit: number;
   includeSubdomains: boolean;
+  detectCategories: boolean;
   auth?: {
     username: string;
     password: string;
@@ -72,6 +76,7 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
   maxProducts: 50000,
   maxPagesToVisit: 1000,
   includeSubdomains: true,
+  detectCategories: true,
   auth: undefined
 }): Promise<ScrapeResult> => {
   try {
@@ -79,6 +84,7 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
     
     const visitedUrls = new Set<string>();
     const allProducts: Product[] = [];
+    const categories = new Map<string, Set<string>>();
     let storeInfo: StoreInfo | undefined;
     let contactInfo: ContactInfo | undefined;
     let hasMoreProducts = false;
@@ -129,6 +135,20 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
     
     for (const pageData of result.data?.pages || []) {
       for (const product of pageData.products || []) {
+        if (options.detectCategories) {
+          const pathSegments = new URL(product.url).pathname.split('/').filter(Boolean);
+          if (pathSegments.length >= 2) {
+            const category = pathSegments[pathSegments.length - 2];
+            const subcategory = pathSegments[pathSegments.length - 1];
+            product.category = category;
+            product.subcategory = subcategory;
+            product.path = pathSegments.join('/');
+            if (!categories.has(category)) {
+              categories.set(category, new Set());
+            }
+            categories.get(category)!.add(subcategory);
+          }
+        }
         allProducts.push(product);
       }
     }
@@ -136,7 +156,13 @@ export const scrapeProducts = async (url: string, options: ScrapeOptions = {
     return {
       success: true,
       products: allProducts,
-      storeInfo: result.data?.storeInfo,
+      storeInfo: {
+        ...result.data?.storeInfo,
+        categories: Array.from(categories.keys()),
+        subcategories: Object.fromEntries(
+          Array.from(categories.entries()).map(([cat, subs]) => [cat, Array.from(subs)])
+        )
+      },
       contactInfo: result.data?.contactInfo,
       lastUpdated: new Date().toISOString(),
       totalProductsEstimate: hasMoreProducts ? allProducts.length * 10 : allProducts.length,
