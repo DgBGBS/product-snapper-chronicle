@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
@@ -18,7 +17,6 @@ const CategoryNavigation = ({
   const [commandOpen, setCommandOpen] = useState(false);
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
 
-  // Efecto de animación al montar
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -40,7 +38,6 @@ const CategoryNavigation = ({
         >
           Todos
         </button>
-        
         {categories.map((category, index) => (
           <button
             key={category}
@@ -48,12 +45,9 @@ const CategoryNavigation = ({
             className={cn(
               "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300",
               "bg-background border border-border hover:bg-secondary/80",
-              activeCategory === category ? "bg-primary text-primary-foreground border-primary" : "",
-              "animation-delay-200"
+              activeCategory === category ? "bg-primary text-primary-foreground border-primary" : ""
             )}
-            style={{ 
-              animationDelay: `${(index + 1) * 100}ms` 
-            }}
+            style={{ animationDelay: `${(index + 1) * 100}ms` }}
           >
             {category}
           </button>
@@ -74,7 +68,7 @@ const CategoryNavigation = ({
           <svg 
             className={cn(
               "h-4 w-4 transition-transform",
-              mobileCategoriesOpen ? "transform rotate-180" : ""
+              mobileCategoriesOpen ? "rotate-180" : ""
             )} 
             xmlns="http://www.w3.org/2000/svg" 
             viewBox="0 0 20 20" 
@@ -83,7 +77,6 @@ const CategoryNavigation = ({
             <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
         </button>
-        
         {mobileCategoriesOpen && (
           <div className="mt-2 p-2 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
             <button
@@ -99,7 +92,6 @@ const CategoryNavigation = ({
             >
               Todos
             </button>
-            
             {categories.map((category) => (
               <button
                 key={category}
@@ -118,37 +110,6 @@ const CategoryNavigation = ({
             ))}
           </div>
         )}
-      </div>
-      
-      {/* Menú de comandos para búsqueda rápida de categorías (accesible con atajo de teclado) */}
-      <div className="hidden">
-        <Command>
-          <CommandInput placeholder="Buscar categoría..." />
-          <CommandList>
-            <CommandEmpty>No se encontraron categorías</CommandEmpty>
-            <CommandGroup heading="Categorías">
-              <CommandItem
-                onSelect={() => {
-                  onSelectCategory(null);
-                  setCommandOpen(false);
-                }}
-              >
-                Todos
-              </CommandItem>
-              {categories.map((category) => (
-                <CommandItem
-                  key={category}
-                  onSelect={() => {
-                    onSelectCategory(category);
-                    setCommandOpen(false);
-                  }}
-                >
-                  {category}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
       </div>
     </div>
   );
