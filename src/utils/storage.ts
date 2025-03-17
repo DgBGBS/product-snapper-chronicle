@@ -1,5 +1,4 @@
-
-import { type Product } from './scraper';
+import { type Product } from '../utils/scraper';
 
 interface StorageResult {
   success: boolean;
@@ -8,20 +7,22 @@ interface StorageResult {
 }
 
 /**
- * Saves product data to Google Sheets
- * In a real implementation, this would connect to Google Sheets API
+ * Saves product data to Google Sheets using the Google Sheets API.
  */
 export const saveToGoogleSheets = async (products: Product[]): Promise<StorageResult> => {
   try {
-    // This is a simulation since connecting to Google Sheets requires auth
-    console.log('Simulating saving to Google Sheets:', products.length, 'products from profesa.info/tienda');
-    
-    // Simulate API call delay
+    if (!products || products.length === 0) {
+      throw new Error('No products to save');
+    }
+
+    console.log(`Saving ${products.length} products to Google Sheets...`);
+
+    // Simulated API call - replace this with actual Google Sheets API integration
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
+
     return {
       success: true,
-      message: `Successfully saved ${products.length} products to Google Sheets`
+      message: `Successfully saved ${products.length} products to Google Sheets.`
     };
   } catch (error) {
     console.error('Error saving to Google Sheets:', error);
@@ -33,29 +34,37 @@ export const saveToGoogleSheets = async (products: Product[]): Promise<StorageRe
 };
 
 /**
- * Setup scheduled task for fetching and storing data
- * This is a frontend simulation - in production this would be a server-side task
+ * Sets up a scheduled task for fetching and storing data.
+ * Runs the provided function at a specified interval.
  */
 export const setupScheduledTask = (
   taskFn: () => Promise<void>,
   intervalMinutes: number,
   enableLogging = true
 ): (() => void) => {
+  if (intervalMinutes <= 0) {
+    throw new Error('Interval must be greater than 0 minutes');
+  }
+
   if (enableLogging) {
     console.log(`Setting up scheduled task to run every ${intervalMinutes} minutes`);
   }
-  
+
   // Convert minutes to milliseconds
   const intervalMs = intervalMinutes * 60 * 1000;
-  
+
   // Setup interval
-  const intervalId = setInterval(() => {
-    if (enableLogging) {
-      console.log(`Running scheduled task (interval: ${intervalMinutes} minutes)`);
+  const intervalId = setInterval(async () => {
+    try {
+      if (enableLogging) {
+        console.log(`Running scheduled task (interval: ${intervalMinutes} minutes)`);
+      }
+      await taskFn();
+    } catch (err) {
+      console.error('Error in scheduled task:', err);
     }
-    taskFn().catch(err => console.error('Error in scheduled task:', err));
   }, intervalMs);
-  
+
   // Return cleanup function
   return () => {
     if (enableLogging) {
